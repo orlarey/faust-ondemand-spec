@@ -1,10 +1,17 @@
-# _On-demand_ computations in FAUST
+---
+author: 'Yann Orlarey'
+title: 'On-demand computations in Faust'
+---
+
+
+
+# _On-demand_ computations in Faust
 
 ## Introduction
 
-There is a request for using Faust in a more _composition-oriented_ way. This can be done by introducing _on-demand_ computations. The challenge is to do that while keeping the simple and well defined semantics of Faust.
+There are requests for using Faust in a more _composition-oriented_ way. This can be done by introducing _on-demand_ computations. The challenge is to do that while keeping the simple and well-defined semantics of Faust.
 
-For that purpose we introduce a new $\mathtt{ondemand}(P)\rightarrow P'$ primitive that operates on signal processors (not on signals). Informally, the resulting signal processor $P'$ is like $P$, but with an additional input for a clock signal and an _on-demand_ semantics. As we will see, this _on-demand_ semantics can be expressed using the regular Faust semantics but applied to downsampled signals.
+For that purpose, we introduce a new $\mathtt{ondemand}(P)\rightarrow P'$ primitive that operates on signal processors (not on signals). Informally, the resulting signal processor $P'$ is like $P$, but with an additional input for a clock signal and an _on-demand_ semantics. As we will see, this _on-demand_ semantics can be expressed using the regular Faust semantics but applied to downsampled signals.
 
 ## Type of $\mathtt{ondemand}(P)$
 
@@ -16,7 +23,7 @@ $$
 
 ## The clock signals $h$
 
-The additional input of $\mathtt{ondemand}(P)$ is a clock signal $h$ that indicates by a $1$ when there is a computation demand, and by $0$ otherwise. In other words $h(t)=1$ means that there is a computation demand at time $t$.
+The additional input of $\mathtt{ondemand}(P)$ is a clock signal $h$ that indicates by a $1$ when there is a computation demand, and by $0$ otherwise. In other words, $h(t)=1$ means that there is a computation demand at time $t$.
 
 Form signal $h$ we can derive a signal $\bar{h}$ that indicates the time of each demand. For example if $h=1,0,0,1,0,0,0,1,0\ldots$ then $\bar{h}=0,3,7,\ldots$ indicating that the first demand is at time $0$, the second one at time $3$, the third one at time $7$, etc.
 
@@ -49,7 +56,7 @@ For example if $ x = 0.0,-0.3,-0.7,\ldots$  and $h^+=1,1,1,2,2,2,2,3,3,\ldots$ t
 
 ## Semantics of Faust expressions
 
-The semantics (i.e. meaning) of Faust expressions is defined in terms of _signal processors_, mathematical functions on signals. In order to destinguish a Faust expression from its meaning, we use semantics braquets $[\![\ ]\!]$. For example $[\![+]\!]$ represents the meaning of the Faust expression $+$ and has the following definition:
+The semantics (i.e. meaning) of Faust expressions is defined in terms of _signal processors_, mathematical functions on signals. In order to distinguish a Faust expression from its meaning, we use semantics brackets $[\![\ ]\!]$. For example $[\![+]\!]$ represents the meaning of the Faust expression $+$ and has the following definition:
 $$
 [\![+]\!](x,y) = \lambda t.(x(t)+y(t))
 $$
@@ -71,4 +78,5 @@ $$
 {[\![\mathtt{ondemand}(P)]\!](h, x_1,\ldots,x_n)= (\uparrow_h(y_1),\ldots,\uparrow_h(y_m))}
 $$
 
-As we can see, $[\![\mathtt{ondemand}(P)]\!]$ is $[\![P]\!]$ applied to downsampled versions of the input signals: $\downarrow_h(x_i)$. The downsampling depends on the demand clock $h$. Intuitively this corresponds to the fact that the values of the input signals are lost between two computation demands. Symatrically the $y_i$ signals return by P have to be upsampled.
+As we can see, $[\![\mathtt{ondemand}(P)]\!]$ is basically $[\![P]\!]$ applied to downsampled versions of the input signals: $\downarrow_h(x_i)$. The downsampling depends on the demand clock $h$. Intuitively this corresponds to the fact that the values of the input signals are lost between two computation demands. Symmetrically the $y_i$ signals returned by P have to be upsampled.
+
