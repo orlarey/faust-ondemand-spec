@@ -1,10 +1,3 @@
----
-author: 'Yann Orlarey'
-title: 'On-demand computations in Faust'
----
-
-
-
 # _On-demand_ computations in Faust
 
 ## Introduction
