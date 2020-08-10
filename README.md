@@ -30,6 +30,10 @@ A group of $n$ signals (a $n$-tuple of signals) is written $(s_{1},\ldots,s_{n})
 
 A *signal processors* $P:\mathbb{S}^{n}\rightarrow\mathbb{S}^{m}$, is a function that maps a $n$-tuple of signals to a $m$-tuple of signals . The set $\mathbb{P}=\bigcup_{n,m}\mathbb{S}^{n}\rightarrow\mathbb{S}^{m}$ is the set of all possible signal processors.
 
+### Composition operators
+
+The five composition operators of Faust ($<: \ :\ :>\ ,\ \sim$) are all binary operations on signal processors: $\mathbb{P}\times\mathbb{P}\rightarrow\mathbb{P}$.
+
 ### Semantic Brackets
 
 In order to distinguish a Faust expression from its _meaning_ as a signal processor, we use the semantic brackets notation $[\![\ ]\!]$. For example $[\![+]\!]$ represents the *meaning* of Faust expression $+$ , a signal processor with the following type and definition: 
@@ -55,7 +59,7 @@ $$
 
 ## The $\mathtt{ondemand}(P)$ primitive
 
-The ondemand primitive is illustrated in the figure below:
+The vast majority of Faust primitives, like $+$ or $\mathtt{enable}$, are operations on *signals*. The $\mathtt{ondemand}$ primitive is very different. It is an operation on *signal processors* of type $\mathbb{P}\rightarrow\mathbb{P}$. It transforms a signal processor $P$ into an on-demand version, as illustrated in the figure below:
 
 ![ondemand0](images/ondemand0.png)
 
@@ -114,3 +118,105 @@ As we can see, $[\![\mathtt{ondemand}(P)]\!]$ is basically $[\![P]\!]$ applied t
 
 <img src="./images/ondemand1.png" alt="ondemand1" style="zoom:50%;" />
 
+## Combining on-demands
+
+What happens when we combine on-demands ? Can we factorize on-demands ? For example, is the sequencial composition of two on-demands with the same clock equivalent to the on-demand of the sequential composition of the inner processors ? We need to be able to answer these questions in order to normalize Faust expressions and generate the most efficient code.
+
+### Notation
+
+Lets start by defining some additional notation. Instead of writing the on-demand version of $P$ controlled by clock $h$ as the partial application: $\mathtt{ondemand}(P)(h)$, we will simply write $P\downarrow h$. 
+
+Let's also notate $1_h=1,1,1,\ldots$ the clock signal that contains only 1s, that is a demand every tick, and $0_h=0,0,0,\ldots$ the clock signal that contains only 0s and therefore no computation demands at all. 
+
+### Combining Clocks
+
+We are interested in understanding what happens when we write something like: $(P\downarrow h_0)\downarrow h_1)$. There is, of course, an equivalent clock $h_3$ such that $(P\downarrow h_0)\downarrow h_1) = P\downarrow h_3$. But how do we compute it? 
+
+Let's call $\otimes$ the operation that combines two clock signals and such that:
+$$
+(P\downarrow h_0)\downarrow h_1) = P\downarrow(h_0\otimes h_1)
+$$
+Let's see what the properties of $\otimes$ are.
+
+### Identities
+
+There are two remarkable identities, related to the $1_h$ and $0_h$ clocks, that need to be taken into account:
+$$
+\begin{align}
+(P\downarrow 1_h)\downarrow h) &= P\downarrow h = (P\downarrow h)\downarrow 1_h)\\
+(P\downarrow 0_h)\downarrow h) &= P\downarrow 0_h = (P\downarrow h)\downarrow 0_h)
+\end{align}
+$$
+We therefore deduce that:
+$$
+\begin{align}
+1_h\otimes h &= h\otimes 1_h = h\\
+0_h\otimes h &= h\otimes 0_h = 0_h
+\end{align}
+$$
+That brings us to a new question: is $\otimes$ a commutative operation?
+$$
+h_1\otimes h_0 = h_0\otimes h_1
+$$
+
+  ### Manual Computation
+
+Let's first manually compute the demands for  $(P\downarrow h_0)\downarrow h_1)$ with 
+$$
+\begin{split}
+h_0             &=1,0,1,0,1,0,1,0,1,0,\ldots\\
+h_1             &=1,1,0,1,0,0,1,0,0,0,\ldots\\
+tick	&=0,1,2,3,4,5,6,7,8,9,\ldots
+\end{split}
+$$
+- at tick $0$ we have a demand because $h_1(0)=1$ and $h_0(0)=1$ ; 
+- at tick 1 we have no demand because $h_1(1)=1$, but $h_0(1)=0$; 
+- at tick 2 we have no demand because $h_1(2)=0$, moreover no demand is propagated to $h_0$; 
+- at tick 3 we have a demand because $h_1(3)=1$ and $h_0(2)=1$;
+- etc.
+
+$$
+\begin{split}
+h_0             &=1,0,1,0,1,0,1,0,1,0,\ldots\\
+h_1             &=1,1,0,1,0,0,1,0,0,0,\ldots\\
+tick	&=0,1,2,3,4,5,6,7,8,9,\ldots\\
+h_0\otimes h_1         &=1,0,0,1,0,0,0,0,0,0,\ldots\\
+\end{split}
+$$
+
+### General Rule
+
+The property to observe from this manual example that one does not necessarily progress to all ticks in $h_0$. In reality, we only progress in $h_0$ when there are requests in $h_1$. In other words, when we are at the tick $t$ in $h_1$ we are only at the tick $h_1^+(t)-1$ in $h_0$. Furthermore, for a request to reach $P$ it is necessary to have $h_1(t)$ and $h_0(h_1^+(t)-1)$ at $1$. We can now write down the general rule:
+$$
+(h_0\otimes h_1)(t)=h_1(t)*h_0(h_1^+(t)-1)
+$$
+It turns out that we've already met part of this formula with our upsampling function. So we can rewrite our definition as follows:
+$$
+(h_0\otimes h_1)=h_1*(h_0\uparrow h_1)
+​					
+$$
+
+If we had chosen a more traditional upsampling function (without repetition, but with insertion of 0) we would have had simply: $\otimes=\uparrow$.
+
+### Commutativity
+
+Let's test commutativity and manually compute $h_1\otimes h_0$:
+$$
+\begin{split}
+h_1   									&=1,1,0,1,0,0,1,0,0,0,\ldots\\
+h_0   									&=1,0,1,0,1,0,1,0,1,0,\ldots\\
+tick										&=0,1,2,3,4,5,6,7,8,9,\ldots\\
+h_1\otimes h_0         	&=1,0,1,0,0,0,1,0,0,0\ldots\\
+\end{split}
+$$
+As we see $h_1\otimes h_0 \neq h_0 \otimes h_1$, the operation is not commutative and therefore:
+$$
+(P\downarrow h_0)\downarrow h_1 \neq (P\downarrow h_1)\downarrow h_0
+$$
+
+### Associativity
+
+Another interesting property is to check is associativity. Do we have:
+$$
+((h_0\otimes h_1)\otimes h_2)=(h_0\otimes (h_1\otimes h_2))
+$$
