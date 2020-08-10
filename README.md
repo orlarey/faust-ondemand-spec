@@ -1,6 +1,6 @@
 # _On-demand_ computations in Faust
 
-**[YO, Preliminary draft v3]**
+**[YO, Preliminary draft v4]**
 
 ## Introduction
 
@@ -218,5 +218,28 @@ $$
 
 Another interesting property is to check is associativity. Do we have:
 $$
-((h_0\otimes h_1)\otimes h_2)=(h_0\otimes (h_1\otimes h_2))
+((h_0\otimes h_1)\otimes h_2)\stackrel{?}{=}(h_0\otimes (h_1\otimes h_2))
 $$
+Let's define three clocks:
+$$
+\begin{split}
+h_0=0,1,0,1,0,1,0,1,0,1,0,1\ldots\\
+h_1=0,1,1,0,1,1,0,1,1,0,1,1\ldots\\
+h_2=1,1,1,1,0,0,1,1,1,1,0,0\ldots
+\end{split}
+$$
+and compute  $(h_0\otimes h_1)\otimes h_2$ and  $h_0\otimes (h_1\otimes h_2)$. In both cases we obtain:
+$$
+\begin{split}
+
+((h_0\otimes h_1)\otimes h_2) &= h_0\otimes (h_1\otimes h_2) = 0,0,1,0,0,0,0,1,0,0,0\ldots\\
+
+
+\end{split}
+$$
+
+Lets workout a proof:				
+​					
+
+
+​						
