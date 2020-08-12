@@ -200,27 +200,30 @@ If we had chosen a more traditional upsampling function (without repetition, but
 
 ### Commutativity
 
-Let's test commutativity and manually compute $h_1\otimes h_0$:
+Let's test commutativity and manually compute $h_0\otimes h_1$ and $h_1\otimes h_0$:
 $$
 \begin{split}
-h_1   									&=1,1,0,1,0,0,1,0,0,0,\ldots\\
 h_0   									&=1,0,1,0,1,0,1,0,1,0,\ldots\\
-tick										&=0,1,2,3,4,5,6,7,8,9,\ldots\\
+h_1   									&=1,1,0,1,0,0,1,0,0,0,\ldots\\
+h_0\otimes h_1					&=1,0,0,1,0,0,0,0,0,0,\ldots\\
 h_1\otimes h_0         	&=1,0,1,0,0,0,1,0,0,0\ldots\\
 \end{split}
 $$
-As we see $h_1\otimes h_0 \neq h_0 \otimes h_1$, the operation is not commutative and therefore:
+As we see from this example $h_1\otimes h_0 \neq h_0 \otimes h_1$, therefore $\otimes$ is not a commutative operation and as a result:
 $$
 (P\downarrow h_0)\downarrow h_1 \neq (P\downarrow h_1)\downarrow h_0
 $$
 
 ### Associativity
 
-Another interesting property is to check is associativity. Do we have:
+Another interesting property is to check is associativity. This is an important property for the compiler because it allows it to reorganize and factorize the generated code more easily. Do we have:
 $$
 ((h_0\otimes h_1)\otimes h_2)\stackrel{?}{=}(h_0\otimes (h_1\otimes h_2))
 $$
-Let's define three clocks:
+
+###### Example
+
+Let's first try on an example:
 $$
 \begin{split}
 h_0=0,1,0,1,0,1,0,1,0,1,0,1\ldots\\
@@ -238,8 +241,58 @@ $$
 \end{split}
 $$
 
-Lets workout a proof:				
-​					
+###### Notation
+
+To simplify the notation during the proof we use capital letters $A,B,C$ for clocks and write $A'=aA$ to indicate that $A'(0)=a$ and $A'(t\ge 1)=A(t-1)$.
+
+Using our new notation we can reformulate the clock composition operation $\otimes$ with two rewriting rules:
+$$
+\begin{split}
+A\otimes 0B &\rightarrow 0(A\otimes B)\\
+aA\otimes 1B &\rightarrow a(A\otimes B)
+\end{split}
+$$
+
+###### The set of clocks $\mathbb{H}$
+
+For the demonstration we are not considering fully arbitrary clocks but clocks that end with 0s. Let's call $\mathbb{H}$ the set of clocks. It can be defined by induction:
+
+- $0_h \in \mathbb{H}$
+- $A\in \mathbb{H} \implies 0A\in \mathbb{H}$
+- $A\in \mathbb{H} \implies 1A\in \mathbb{H}$
+- Nothing else is in $\mathbb{H}$.
+
+##### Proof
+
+We want to prove that:
+$$
+\forall A,B,C \in \mathbb{H}, (A\otimes B)\otimes C=A\otimes(B\otimes C)
+$$
+
+###### Trivial case
+
+Associativity holds if any the three clocks is $0_h$:
+$$
+A=0_h\or B=0_h\or C=0_h \implies (A\otimes B)\otimes C=A\otimes (B\otimes C)
+$$
+
+###### Induction steps
+
+- Case 1: $(A\otimes B)\otimes 0C=A\otimes (B\otimes 0C)$
+  - a) $(A\otimes B)\otimes 0C\rightarrow 0((A\otimes B)\otimes C)$
+  - b) $A\otimes (B\otimes 0C)\rightarrow A\otimes 0(B\otimes C) \rightarrow 0(A\otimes (B\otimes C))$
+
+- Case 2: $(A\otimes 0B)\otimes 1C = A\otimes(0B\otimes 1C)$
+  - a) $(A\otimes 0B)\otimes 1C \rightarrow 0(A\otimes B)\otimes 1C \rightarrow 0((A\otimes B)\otimes C)$
+  - b) $A\otimes (0B\otimes 1C) \rightarrow A\otimes (0(B\otimes C)) \rightarrow 0(A\otimes (B\otimes C))$
+
+- Case 3: $(aA\otimes 1B)\otimes 1C = aA\otimes(1B\otimes 1C)$
+  - a: $(aA\otimes 1B)\otimes 1C \rightarrow a(A\otimes B)\otimes 1C \rightarrow a(A\otimes B)\otimes C$
+  - b: $aA\otimes (1B\otimes 1C) \rightarrow aA\otimes 1(B\otimes C) \rightarrow a(A\otimes (B\otimes C))$
 
 
-​						
+
+
+
+
+
