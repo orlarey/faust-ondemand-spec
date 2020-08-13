@@ -18,7 +18,7 @@ Time in Faust is discrete and it is represented by $\mathbb{Z}$. All computation
 
 ### Signals
 
-A _signal_ $s$ is a function of time $s:\mathbb{Z}\rightarrow\mathbb{R}$. Actually Faust considers two types of signals: _integer signals_ ($s:\mathbb{Z}\rightarrow\mathbb{Z}$) and _floating point signals_ ($s:\mathbb{Z}\rightarrow\mathbb{Q}$) but this distinction doesn't matter here. The value of a signal $s$ at time $t$ is written $s(t)$. 
+A _signal_ $s$ is a function of time $s:\mathbb{Z}\rightarrow\mathbb{R}$. Actually Faust considers two types of signals: _integer signals_ $(s:\mathbb{Z}\rightarrow\mathbb{Z})$ and _floating point signals_ ($s:\mathbb{Z}\rightarrow\mathbb{Q}$) but this distinction doesn't matter here. The value of a signal $s$ at time $t$ is written $s(t)$. 
 
 The set of all possible signals in Faust is $\mathbb{S}\subset\mathbb{Z}\rightarrow\mathbb{R}$. The set $\mathbb{S}$  is a subset of $\mathbb{Z}\rightarrow\mathbb{R}$ because the value of any Faust signal $s$ at a negative time is always $0$: $\forall s\in\mathbb{S},s(t<0)=0$. In operational terms this corresponds to initialising all delay lines with $0$s.
 
@@ -124,7 +124,7 @@ What happens when we combine on-demands ? Can we factorize on-demands ? For exam
 
 ### Notation
 
-Lets start by defining some additional notation. Instead of writing the on-demand version of $P$ controlled by clock $h$ as the partial application: $\mathtt{ondemand}(P)(h)$, we will simply write $P\downarrow h$. 
+Let's start by defining some additional notation. Instead of writing the on-demand version of $P$ controlled by clock $h$ as the partial application: $\mathtt{ondemand}(P)(h)$, we will simply write $P\downarrow h$. 
 
 Let's also notate $1_h=1,1,1,\ldots$ the clock signal that contains only 1s, that is a demand every tick, and $0_h=0,0,0,\ldots$ the clock signal that contains only 0s and therefore no computation demands at all. 
 
@@ -136,7 +136,7 @@ Let's call $\otimes$ the operation that combines two clock signals and such that
 $$
 (P\downarrow h_0)\downarrow h_1) = P\downarrow(h_0\otimes h_1)
 $$
-Let's see what the properties of $\otimes$ are.
+Let's see what the propertiecs of $\otimes$ are.
 
 ### Identities
 
@@ -154,12 +154,7 @@ $$
 0_h\otimes h &= h\otimes 0_h = 0_h
 \end{align}
 $$
-That brings us to a new question: is $\otimes$ a commutative operation?
-$$
-h_1\otimes h_0 = h_0\otimes h_1
-$$
-
-  ### Manual Computation
+  ### A Manual Example
 
 Let's first manually compute the demands for  $(P\downarrow h_0)\downarrow h_1)$ with 
 $$
@@ -173,7 +168,7 @@ $$
 - at tick 1 we have no demand because $h_1(1)=1$, but $h_0(1)=0$; 
 - at tick 2 we have no demand because $h_1(2)=0$, moreover no demand is propagated to $h_0$; 
 - at tick 3 we have a demand because $h_1(3)=1$ and $h_0(2)=1$;
-- etc.
+- Etc.
 
 $$
 \begin{split}
@@ -183,6 +178,19 @@ tick	&=0,1,2,3,4,5,6,7,8,9,\ldots\\
 h_0\otimes h_1         &=1,0,0,1,0,0,0,0,0,0,\ldots\\
 \end{split}
 $$
+
+We can better understand how $h_0\otimes h_1$ is computed by aligning $h_0$ values on top of $h_1$ demands:
+
+
+$$
+\begin{split}
+h_0             &=1,0,  &1,    &0,      &\ldots\\
+h_1             &=1,1,0,&1,0,0,&1,0,0,0,&\ldots\\
+h_0\otimes h_1  &=1,0,0,&1,0,0,&0,0,0,0,&\ldots\\
+\end{split}
+$$
+
+
 
 ### General Rule
 
@@ -200,7 +208,7 @@ If we had chosen a more traditional upsampling function (without repetition, but
 
 ### Commutativity
 
-Let's test commutativity and manually compute $h_0\otimes h_1$ and $h_1\otimes h_0$:
+Is $\otimes$ commutative ? Let's try with an example:
 $$
 \begin{split}
 h_0   									&=1,0,1,0,1,0,1,0,1,0,\ldots\\
@@ -209,89 +217,155 @@ h_0\otimes h_1					&=1,0,0,1,0,0,0,0,0,0,\ldots\\
 h_1\otimes h_0         	&=1,0,1,0,0,0,1,0,0,0\ldots\\
 \end{split}
 $$
-As we see from this example $h_1\otimes h_0 \neq h_0 \otimes h_1$, therefore $\otimes$ is not a commutative operation and as a result:
+As we see $h_1\otimes h_0 \neq h_0 \otimes h_1$, therefore $\otimes$ is not a commutative operation and as a result:
 $$
 (P\downarrow h_0)\downarrow h_1 \neq (P\downarrow h_1)\downarrow h_0
 $$
 
 ### Associativity
 
-Another interesting property is to check is associativity. This is an important property for the compiler because it allows it to reorganize and factorize the generated code more easily. Do we have:
-$$
-((h_0\otimes h_1)\otimes h_2)\stackrel{?}{=}(h_0\otimes (h_1\otimes h_2))
-$$
-
-###### Example
-
-Let's first try on an example:
-$$
-\begin{split}
-h_0=0,1,0,1,0,1,0,1,0,1,0,1\ldots\\
-h_1=0,1,1,0,1,1,0,1,1,0,1,1\ldots\\
-h_2=1,1,1,1,0,0,1,1,1,1,0,0\ldots
-\end{split}
-$$
-and compute  $(h_0\otimes h_1)\otimes h_2$ and  $h_0\otimes (h_1\otimes h_2)$. In both cases we obtain:
-$$
-\begin{split}
-
-((h_0\otimes h_1)\otimes h_2) &= h_0\otimes (h_1\otimes h_2) = 0,0,1,0,0,0,0,1,0,0,0\ldots\\
-
-
-\end{split}
-$$
+Another interesting property is to check is associativity. This is an important one for the Faust compiler because it allows it to reorganize and factorize the generated code more easily. So, do we have: $((h_0\otimes h_1)\otimes h_2)=(h_0\otimes (h_1\otimes h_2))$ ?
 
 ###### Notation
 
-To simplify the notation during the proof we use capital letters $A,B,C$ for clocks and write $A'=aA$ to indicate that $A'(0)=a$ and $A'(t\ge 1)=A(t-1)$.
+To lighten the notation during the proof we will use capital letters $A,B,C$ for clocks and write $A'=aA$ to indicate that $A'(0)=a$ and $A'(t\ge 1)=A(t-1)$.
 
 Using our new notation we can reformulate the clock composition operation $\otimes$ with two rewriting rules:
 $$
 \begin{split}
-A\otimes 0B &\rightarrow 0(A\otimes B)\\
-aA\otimes 1B &\rightarrow a(A\otimes B)
+A\otimes 0B &\stackrel{\alpha}{\longrightarrow} 0(A\otimes B)\\
+aA\otimes 1B &\stackrel{\beta}{\longrightarrow} a(A\otimes B)
 \end{split}
 $$
 
-###### The set of clocks $\mathbb{H}$
+###### Associativity as a predicate
 
-For the demonstration we are not considering fully arbitrary clocks but clocks that end with 0s. Let's call $\mathbb{H}$ the set of clocks. It can be defined by induction:
+We want to check that $\otimes$ is associative for every possible clocks. We can reformulate that as a predicate $\mathcal{P}$ on triplets of clocks:
+$$
+\mathcal{P}(A,B,C) \stackrel{\text{def}}{=} (A\otimes B)\otimes C=A\otimes(B\otimes C)
+$$
+and check that P is true for all possible triplets of clocks.
+
+###### Inductive set 
+
+To do that, we need an inductive definition of the set of triplets of clocks. For the simplicity reasons we are not considering arbitrary clocks but only clocks that end with an infinite sequence of 0s. 
+
+Let's call $\mathbb{H}$ this specific set of clocks. Here is its inductive definition:
 
 - $0_h \in \mathbb{H}$
 - $A\in \mathbb{H} \implies 0A\in \mathbb{H}$
 - $A\in \mathbb{H} \implies 1A\in \mathbb{H}$
 - Nothing else is in $\mathbb{H}$.
 
-##### Proof
+The set of triplets of clocks we are interested in is $\mathbb{H}\times \mathbb{H}\times \mathbb{H}$. But we need an inductive definition of it. Here is one:
+- Base case: $\forall A,B \in \mathbb{H},(A,B,0_h) \in \mathbb{H}^3$
+- Induction step 1: $(A,B,C)\in \mathbb{H}^3 \implies (A,B,0C)\in \mathbb{H}^3$
+- Induction step 2: $(A,B,C)\in \mathbb{H}^3 \implies (A,0B,1C)\in \mathbb{H}^3$
+- Induction step 3: $(A,B,C)\in \mathbb{H}^3 \implies (0A,1B,1C)\in \mathbb{H}^3$
+- Induction step 4: $(A,B,C)\in \mathbb{H}^3 \implies (1A,1B,1C)\in \mathbb{H}^3$
+- Nothing else is in $\mathbb{H}^3$.
 
-We want to prove that:
+To be sure that our inductive definition is correct, we need first to prove that the resulting set $\mathbb{H}^3$ is equivalent to $\mathbb{H}\times\mathbb{H}\times\mathbb{H}$ in other words that :
+
+- a) $\forall(A,B,C)\in\mathbb{H}^3\implies A,B,C\in\mathbb{H}$
+- b) $\forall A,B,C\in\mathbb{H}\implies(A,B,C)\in\mathbb{H}^3$
+
+_Proof_: 
+
+- a) trivial 
+
+- b) We provide a recursive proof that is guaranteed to end on a base case $(A,B,0_h)\in\mathbb{H}^3$ because one element of C is removed at each iteration leading to $0_h$ after a finite number of iterations.
+
+  - to prove $(0A,0B,0C)\in\mathbb{H}^3$, prove $(0A,0B,C)\in\mathbb{H}^3$ and use induction step 1
+
+  - to prove $(0A,0B,1C)\in\mathbb{H}^3$, prove $(0A,B,C)\in\mathbb{H}^3$ and use induction step 2
+
+  - to prove $(0A,1B,0C)\in\mathbb{H}^3$, prove $(0A,1B,C)\in\mathbb{H}^3$ and use induction step 1
+
+  - to prove $(0A,1B,1C)\in\mathbb{H}^3$, prove $(A,B,C)\in\mathbb{H}^3$ and use induction step 3
+
+  - to prove $(1A,0B,0C)\in\mathbb{H}^3$, prove $(0A,0B,C)\in\mathbb{H}^3$ and use induction step 1
+
+  - to prove $(1A,0B,1C)\in\mathbb{H}^3$, prove $(1A,B,C)\in\mathbb{H}^3$ and use induction step 2
+
+  - to prove $(1A,1B,0C)\in\mathbb{H}^3$, prove $(1A,1B,C)\in\mathbb{H}^3$ and use induction step 1
+
+  - to prove $(1A,1B,1C)\in\mathbb{H}^3$, prove $(A,B,C)\in\mathbb{H}^3$ and use induction step 4
+
+    
+
+#### Proof of Associativity
+
+To prove $\mathcal{P}$ for all elements of $\mathbb{H}^3$, we have to prove it for the base cases and for the four induction steps.
+
+###### Base case: $\mathcal{P}(A,B,0_h)$ is true.
+
+_Proof_:
 $$
-\forall A,B,C \in \mathbb{H}, (A\otimes B)\otimes C=A\otimes(B\otimes C)
+(A \otimes B)\otimes 0_h
+	\rightarrow 
+	0_h
+	\leftarrow
+	A\otimes 0_h
+	\leftarrow
+	A \otimes (B\otimes 0_h)
 $$
 
-###### Trivial case
-
-Associativity holds if any the three clocks is $0_h$:
+###### Induction step 1: $P(A,B,C) \implies P(A,B,0C)$
+_Proof_: 
 $$
-A=0_h\or B=0_h\or C=0_h \implies (A\otimes B)\otimes C=A\otimes (B\otimes C)
+	(A\otimes B)\otimes 0C 
+	\rightarrow 
+	0((A\otimes B)\otimes C) = 0(A\otimes (B\otimes C))
+	\leftarrow 
+	A\otimes 0(B\otimes C)
+	\leftarrow 
+	A\otimes (B\otimes 0C)
 $$
 
-###### Induction steps
+###### Induction step 2: $P(A,B,C) \implies P(A,0B,1C)$
+_Proof_: 
+$$
+	(A\otimes 0B)\otimes 1C 
+	\rightarrow 
+	0(A\otimes B)\otimes 1C 
+	\rightarrow 
+	0((A\otimes B)\otimes C)=0(A\otimes (B\otimes C))
+	\leftarrow 
+	A\otimes 0(B\otimes C)
+	\letfarrow 
+	A\otimes (0B\otimes 1C)
+$$
 
-- Case 1: $(A\otimes B)\otimes 0C=A\otimes (B\otimes 0C)$
-  - a) $(A\otimes B)\otimes 0C\rightarrow 0((A\otimes B)\otimes C)$
-  - b) $A\otimes (B\otimes 0C)\rightarrow A\otimes 0(B\otimes C) \rightarrow 0(A\otimes (B\otimes C))$
+###### Induction step 3: $P(A,B,C) \implies P(0A,1B,1C)$
+_Proof_: 
+$$
+	(0A\otimes 1B)\otimes 1C 
+	\rightarrow 
+	0(A\otimes B)\otimes 1C 
+	\rightarrow 
+	0((A\otimes B)\otimes C) = 0(A\otimes (B\otimes C))
+  \leftarrow 
+  0A\otimes 1(B\otimes C) 
+  \leftarrow 
+  0A\otimes (1B\otimes 1C)
+$$
 
-- Case 2: $(A\otimes 0B)\otimes 1C = A\otimes(0B\otimes 1C)$
-  - a) $(A\otimes 0B)\otimes 1C \rightarrow 0(A\otimes B)\otimes 1C \rightarrow 0((A\otimes B)\otimes C)$
-  - b) $A\otimes (0B\otimes 1C) \rightarrow A\otimes (0(B\otimes C)) \rightarrow 0(A\otimes (B\otimes C))$
+###### Induction step 4: $P(A,B,C) \implies P(1A,1B,1C)$
+_Proof_: 
+$$
+	(1A\otimes 1B)\otimes 1C 
+	\rightarrow 
+	1(A\otimes B)\otimes 1C 
+	\rightarrow 
+	1(A\otimes B)\otimes C = 1(A\otimes(B\otimes C)) 
+	\leftarrow 
+	1A\otimes1(B\otimes C)
+	\leftarrow 
+	1A\otimes(1B\otimes 1C)
+$$
 
-- Case 3: $(aA\otimes 1B)\otimes 1C = aA\otimes(1B\otimes 1C)$
-  - a: $(aA\otimes 1B)\otimes 1C \rightarrow a(A\otimes B)\otimes 1C \rightarrow a(A\otimes B)\otimes C$
-  - b: $aA\otimes (1B\otimes 1C) \rightarrow aA\otimes 1(B\otimes C) \rightarrow a(A\otimes (B\otimes C))$
-
-
-
+$\square$
 
 
 
