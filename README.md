@@ -120,7 +120,7 @@ As we can see, $[\![\mathtt{ondemand}(P)]\!]$ is basically $[\![P]\!]$ applied t
 
 ## Combining on-demands
 
-What happens when we combine on-demands ? Can we factorize on-demands ? For example, is the sequencial composition of two on-demands with the same clock equivalent to the on-demand of the sequential composition of the inner processors ? We need to be able to answer these questions in order to normalize Faust expressions and generate the most efficient code.
+What happens when we combine on-demands? Can we factorize on-demands? For example, is the sequential composition of two on-demands with the same clock equivalent to the on-demand of the sequential composition of the inner processors? We need to be able to answer these questions in order to normalize Faust expressions and generate the most efficient code.
 
 ### Notation
 
@@ -208,7 +208,7 @@ If we had chosen a more traditional upsampling function (without repetition, but
 
 ### Commutativity
 
-Is $\otimes$ commutative ? Let's try with an example:
+Is $\otimes$ commutative? Let's try with an example:
 $$
 \begin{split}
 h_0   									&=1,0,1,0,1,0,1,0,1,0,\ldots\\
@@ -217,20 +217,20 @@ h_0\otimes h_1					&=1,0,0,1,0,0,0,0,0,0,\ldots\\
 h_1\otimes h_0         	&=1,0,1,0,0,0,1,0,0,0\ldots\\
 \end{split}
 $$
-As we see $h_1\otimes h_0 \neq h_0 \otimes h_1$, therefore $\otimes$ is not a commutative operation and as a result:
+As we see $h_1\otimes h_0 \neq h_0 \otimes h_1$, therefore **$\otimes$ is not a commutative operation** and, as a result:
 $$
 (P\downarrow h_0)\downarrow h_1 \neq (P\downarrow h_1)\downarrow h_0
 $$
 
 ### Associativity
 
-Another interesting property is to check is associativity. This is an important one for the Faust compiler because it allows it to reorganize and factorize the generated code more easily. So, do we have: $((h_0\otimes h_1)\otimes h_2)=(h_0\otimes (h_1\otimes h_2))$ ?
+Another interesting property is to check is associativity. This is an important one for the Faust compiler. It allows the normalizer to reorganize and factorize the code more easily. So, do we have: $((h_0\otimes h_1)\otimes h_2)=(h_0\otimes (h_1\otimes h_2))$?
 
 ###### Notation
 
-To lighten the notation during the proof we will use capital letters $A,B,C$ for clocks and write $A'=aA$ to indicate that $A'(0)=a$ and $A'(t\ge 1)=A(t-1)$.
+To lighten the notation during the proof, we will use capital letters $A,B,C$ for clocks and write $A'=aA$ to indicate that $A'(0)=a$ and $A'(t\ge 1)=A(t-1)$.
 
-Using our new notation we can reformulate the clock composition operation $\otimes$ with two rewriting rules:
+Using our new notation, we can reformulate the clock composition operation $\otimes$ with two rewriting rules:
 $$
 \begin{split}
 A\otimes 0B &\stackrel{\alpha}{\longrightarrow} 0(A\otimes B)\\
@@ -240,15 +240,15 @@ $$
 
 ###### Associativity as a predicate
 
-We want to check that $\otimes$ is associative for every possible clocks. We can reformulate that as a predicate $\mathcal{P}$ on triplets of clocks:
+We want to check that $\otimes$ is associative for every possible clock. We can reformulate this property as a predicate $\mathcal{P}$ on triplets of clocks:
 $$
 \mathcal{P}(A,B,C) \stackrel{\text{def}}{=} (A\otimes B)\otimes C=A\otimes(B\otimes C)
 $$
-and check that P is true for all possible triplets of clocks.
+and check that P is true for every triplet of clocks.
 
 ###### Inductive set 
 
-To do that, we need an inductive definition of the set of triplets of clocks. For the simplicity reasons we are not considering arbitrary clocks but only clocks that end with an infinite sequence of 0s. 
+To do that, we need an inductive definition of the set of triplets of clocks. For simplicity reasons, we are not considering arbitrary clocks but only clocks terminated with an infinite sequence of 0s. 
 
 Let's call $\mathbb{H}$ this specific set of clocks. Here is its inductive definition:
 
@@ -265,7 +265,7 @@ The set of triplets of clocks we are interested in is $\mathbb{H}\times \mathbb{
 - Induction step 4: $(A,B,C)\in \mathbb{H}^3 \implies (1A,1B,1C)\in \mathbb{H}^3$
 - Nothing else is in $\mathbb{H}^3$.
 
-To be sure that our inductive definition is correct, we need first to prove that the resulting set $\mathbb{H}^3$ is equivalent to $\mathbb{H}\times\mathbb{H}\times\mathbb{H}$ in other words that :
+To be sure that our inductive definition is correct, we need first to prove that the resulting set $\mathbb{H}^3$ is equivalent to $\mathbb{H}\times\mathbb{H}\times\mathbb{H}$, in other words, that :
 
 - a) $\forall(A,B,C)\in\mathbb{H}^3\implies A,B,C\in\mathbb{H}$
 - b) $\forall A,B,C\in\mathbb{H}\implies(A,B,C)\in\mathbb{H}^3$
@@ -274,7 +274,7 @@ _Proof_:
 
 - a) trivial 
 
-- b) We provide a recursive proof that is guaranteed to end on a base case $(A,B,0_h)\in\mathbb{H}^3$ because one element of C is removed at each iteration leading to $0_h$ after a finite number of iterations.
+- b) We provide a recursive proof that is guaranteed to end on a base case $(A,B,0_h)\in\mathbb{H}^3$. This is because one element of C is removed at each iteration, leading to $0_h$ after a finite number of iterations.
 
   - to prove $(0A,0B,0C)\in\mathbb{H}^3$, prove $(0A,0B,C)\in\mathbb{H}^3$ and use induction step 1
 
@@ -296,7 +296,7 @@ _Proof_:
 
 #### Proof of Associativity
 
-To prove $\mathcal{P}$ for all elements of $\mathbb{H}^3$, we have to prove it for the base cases and for the four induction steps.
+To prove $\mathcal{P}$ for all elements of $\mathbb{H}^3$, we have to prove it for the base cases and the four induction steps.
 
 ###### Base case: $\mathcal{P}(A,B,0_h)$ is true.
 
