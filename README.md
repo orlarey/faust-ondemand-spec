@@ -1,4 +1,4 @@
-# _On-demand_ computations in Faust
+# _On-demand_ Computations in Faust
 
 **[YO, Preliminary draft v4]**
 
@@ -10,7 +10,7 @@ The challenge is to introduce _on-demand_ computations while keeping the simple 
 
 ## Semantics of Faust Expressions
 
-Before describing the particular semantics of $\mathtt{ondemand}()$, let's take a look at the semantics of Faust in general. Faust semantics is based on _signals_ and _signal processors_. A _signal_ is a function of time and a _signal processor_ is a function of signals. A Faust program describes a _signal processor and programming in Faust is essentially combining _signal processors_ together, for example using composition operators like $\mathtt{:}$ or $\mathtt{\sim}$. 
+Before describing the particular semantics of $\mathtt{ondemand}()$, let's take a look at the semantics of Faust in general. The main notions are _signals_ and _signal processors_. A _signal_ is a function of time and a _signal processor_ is a function of signals. A Faust program describes a _signal processor_. Programming in Faust is essentially _combining signal processors_ together, for example using composition operators like $\mathtt{:}$ or $\mathtt{\sim}$. 
 
 ### Time
 
@@ -32,11 +32,11 @@ A *signal processors* $P:\mathbb{S}^{n}\rightarrow\mathbb{S}^{m}$, is a function
 
 ### Composition operators
 
-The five composition operators of Faust ($<: \ :\ :>\ ,\ \sim$) are all binary operations on signal processors: $\mathbb{P}\times\mathbb{P}\rightarrow\mathbb{P}$.
+The five composition operators of Faust ($<: \ :\ :>\ ,\ \sim$) are binary operations on signal processors: $\mathbb{P}\times\mathbb{P}\rightarrow\mathbb{P}$.
 
 ### Semantic Brackets
 
-In order to distinguish a Faust expression from its _meaning_ as a signal processor, we use the semantic brackets notation $[\![\ ]\!]$. For example $[\![+]\!]$ represents the *meaning* of Faust expression $+$ , a signal processor with the following type and definition: 
+In order to distinguish a Faust expression from its _meaning_ as a signal processor, we use the semantic brackets notation $[\![\ ]\!]$. For example $[\![+]\!]$ represents the *meaning* of Faust expression $+$ , a signal processor that takes two input signals $x$ and $y$ and produces an output signal by adding together the samples of the input signals: 
 $$
 \begin{align}
 	[\![+]\!]&: \mathbb{S}^2\rightarrow\mathbb{S}^1 \\
@@ -44,7 +44,6 @@ $$
 \end{align}
 $$
 Numbers are also signal processors. The *meaning* of the Faust expression $1$ is the following: 
-
 $$
 \begin{align}
 	[\![1]\!]&: \mathbb{S}^0\rightarrow\mathbb{S}^1 \\
