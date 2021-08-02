@@ -6,7 +6,7 @@ name: convert to pdf
 # events but only for the master branch
 on:
   push:
-    branches: [ master ]
+    branches: [ newmaster ]
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
       - name: Pandoc Document Converter
         uses: Ender-events/pandoc@master
         with:
-          args: '-s -o README.pdf README.md'
+          args: '-s -o ondemand.pdf README.md'
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.0.0
@@ -36,6 +36,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./README.pdf
-          asset_name: README.pdf
+          asset_path: ./ondemand.pdf
+          asset_name: ondemand.pdf
           asset_content_type: application/pdf
