@@ -135,7 +135,7 @@ Let's call $\otimes$ the operation that combines two clock signals and such that
 $$
 (P\downarrow h_0)\downarrow h_1) = P\downarrow(h_0\otimes h_1)
 $$
-Let's see what the propertiecs of $\otimes$ are.
+Let's see what the properties of $\otimes$ are.
 
 ### Identities
 
