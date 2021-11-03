@@ -1,6 +1,6 @@
 # _On-demand_ Computations in Faust
 
-**[YO, Preliminary draft v4]**
+**[YO, Preliminary draft v5]**
 
 ## Introduction
 
@@ -69,7 +69,7 @@ $$
 
 ### The clock signal $h$
 
-From a clock signal $h$ we can derive a signal $h^*$ that indicates the time of each demand. For example if $h=1,0,0,1,0,0,0,1,0\ldots$ then $h^*=0,3,7,\ldots$ indicating that the first demand is at time $0$, the second one at time $3$, the third one at time $7$, etc. We have 
+From a clock signal $h$ we can derive a signal $h^*$ that indicates the time of each demand. For example if $h=1,0,0,1,0,0,0,1,0\ldots$ then $h^*=0,3,7,\ldots$ indicating that the first demand is at time $0$, the second one at time $3$, the third one at time $7$, etc. In other words, $h^{*}$ translates internal time (time inside $\mathtt{ondemand}(P)$) into external time (time outside $\mathtt{ondemand}(P)$). We have 
 $$
 \begin{split}
 h^*(0) &= \min \{t'|(h(t')=1)\} \\
@@ -80,15 +80,15 @@ $$
 
 We also derive another signal $h^+$ that _counts_ the number of demands:
 $$
-h^+(t) = \sum_{i=0}^t h(i)
+h^+(t) = \left(\sum_{i=0}^t h(i)\right)-1
 $$
-For the same $h=1,0,0,1,0,0,0,1,0\ldots$ we have $h^+=1,1,1,2,2,2,2,3,3,\ldots$
+For the same $h=1,0,0,1,0,0,0,1,0\ldots$ we have $h^+=0,0,0,1,1,1,1,2,2,\ldots$. Here $h^{+}$ translates external time (time outside $\mathtt{ondemand}(P)$) into internal time (time inside $\mathtt{ondemand}(P)$).
 
-Now that we have defined the clocks signals $h$ and $h^*$, we can introduce the _downsampling_ and _upsampling_  operations needed to express the _on-demand_ semantics. 
+Now that we have defined the clocks signals $h$ , $h^+$ and $h^*$, we can introduce the _downsampling_ and _upsampling_  operations needed to express the _on-demand_ semantics. 
 
 ### Downsampling
 
-The downsamplig operation is notated $\downarrow h$. For a signal $x$, the downsampled signal $x\downarrow h$ is defined as:
+The downsamplig operation is notated $\downarrow h$. For a signal $x$, the downsampled signal $x\downarrow h$ representes the external signal $x$ seen as seen from inside  $\mathtt{ondemand}(P)$. It is defined as:
 $$
 x\downarrow h = \lambda t.x(h^*(t))
 $$
@@ -96,12 +96,12 @@ For example if $x=0.0, -0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7,\ldots$ and  $h^
 
 ### Upsampling
 
-The reverse _upsampling_ operation, notated $\uparrow h$, expands the input signal by repeating the missing values. 
+The reverse _upsampling_ operation, notated $\uparrow h$, expands the input signal by repeating the missing values. For a signal $x$, the upsampled signal $x\uparrow h$ representes the internal signal $x$  as seen from outside $\mathtt{ondemand}(P)$. It is defined as:
 $$
-x\uparrow h = \lambda t.x(h^+(t)-1)
+x\uparrow h = \lambda t.x(h^+(t))
 $$
 
-For example if $ x = 0.0,-0.3,-0.7,\ldots$  and $h^+=1,1,1,2,2,2,2,3,3,\ldots$ then $x \uparrow h = 0.0,0.0,0.0,-0.3,-0.3,-0.3,-0.3,-0.7,\ldots$ 
+For example if $ x = 0.0,-0.3,-0.7,\ldots$  and $h^+=0,0,0,1,1,1,1,2,2,\ldots$ then $x \uparrow h = 0.0,0.0,0.0,-0.3,-0.3,-0.3,-0.3,-0.7,\ldots$ 
 
 > _NOTE_: please note that $\uparrow h:\downarrow h$ is the identity function, but that is not true for $\downarrow h:\uparrow h$.
 
@@ -195,7 +195,7 @@ $$
 
 The property to observe from this manual example that one does not necessarily progress to all ticks in $h_0$. In reality, we only progress in $h_0$ when there are requests in $h_1$. In other words, when we are at the tick $t$ in $h_1$ we are only at the tick $h_1^+(t)-1$ in $h_0$. Furthermore, for a request to reach $P$ it is necessary to have $h_1(t)$ and $h_0(h_1^+(t)-1)$ at $1$. We can now write down the general rule:
 $$
-(h_0\otimes h_1)(t)=h_1(t)*h_0(h_1^+(t)-1)
+(h_0\otimes h_1)(t)=h_1(t)*h_0(h_1^+(t))
 $$
 It turns out that we've already met part of this formula with our upsampling function. So we can rewrite our definition as follows:
 $$
@@ -365,7 +365,6 @@ $$
 $$
 
 $\square$
-
 
 
 
