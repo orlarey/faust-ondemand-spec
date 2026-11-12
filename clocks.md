@@ -1,6 +1,6 @@
 # Un calcul d'horloges pour Faust
 
-**[Brouillon v4 — document de travail, 12 novembre 2026]**
+**[Brouillon v5 — document de travail, 12 novembre 2026]**
 
 Objet : poser la théorie des horloges qui servira de base à la réimplémentation de
 `ondemand`, `upsampling` et `downsampling` sur `master-dev-certification-4`.
@@ -205,8 +205,14 @@ toutes les transformations.
 | Constructeur | Horloge |
 |---|---|
 | `Delay`$^c(x, d)$, `Prefix`$^c$, `FIR`$^c$, `IIR`$^c$, `IRM`$^c$ | argument $c$ |
-| `WRTbl`$^c$ (écriture de table) | argument $c$ |
 | `Sample`$^c(x)$ | argument $c$ |
+
+**[D] L'écriture de table fait exception.** L'état d'un retard dépend du nombre de
+tops écoulés ; celui d'une table écrite ne dépend que des valeurs écrites. Écrire deux
+fois la même valeur dans la même case est sans effet : la table ne change qu'aux
+instants où son index ou sa valeur d'écriture change. `WRTbl` ne porte donc pas
+d'horloge ; la sienne est la plus dense de celles de ces deux arguments, comme pour un
+calcul sans mémoire. C'est la règle de la variabilité actuelle.
 
 Un calcul à mémoire d'horloge $c$ **lit ses arguments aux tops de $c$**, par la règle
 de lecture. `Delay`$^c(x, d)$ est donc défini quelle que soit l'horloge de $x$ : il
@@ -278,6 +284,9 @@ $$\frac{\vdash s_i : H_i \quad \text{les } H_i \text{ forment une chaîne}}{\vda
 \frac{}{\vdash \mathtt{Delay}^c(x,d) : c}\ (\textit{mem})
 \qquad
 \frac{\vdash \mathrm{def}_i(W) : H}{\vdash \mathtt{Proj}(i, W) : H}\ (\textit{proj})$$
+
+$$\frac{\vdash \mathit{wi} : H_1 \quad \vdash \mathit{ws} : H_2 \quad H_1, H_2 \text{ en chaîne}}
+{\vdash \mathtt{WRTbl}(n, g, \mathit{wi}, \mathit{ws}) : \max(H_1, H_2)}\ (\textit{wrtbl})$$
 
 $$\frac{r \in \mathbb{N} \text{ (prouvé par intervalle)}}
 {p \triangleright r \ \text{bien formée}}\ (\textit{clk})$$
@@ -543,16 +552,11 @@ Comparaison avec `VariabilityAlgebra` (`signals/sigattributes.cpp`), lue sur
 | `Table` (lecture seule), `Gen` | `kKonst` | $\bot$ (temps différé) | oui |
 | bargraph | `s \| kBlock` | $\max(H(s), \mathbf{B})$ | oui |
 | `FIR` à un seul coefficient | celle de l'entrée | à traiter comme une opération | à aligner |
-| `WRTbl` | `kKonst \| wi \| ws` | argument $c$ | **écart** |
+| `WRTbl` | `kKonst \| wi \| ws` | maximum de l'index et de la valeur d'écriture | oui |
 | projection d'un groupe récursif | jointure de tout le groupe | horloge de sa propre définition | **à vérifier** |
 
-Deux points à examiner :
+Un point à examiner :
 
-- **`WRTbl`.** La variabilité d'une table écrite est celle de son index et de son
-  signal d'écriture : une table écrite au rythme des blocs est `kBlock`. C'est
-  légitime, parce que réécrire la même valeur au même index est sans effet. La règle
-  (*mem*) lui donnerait $\mathbf{S}$. Il faut soit accepter l'écart, soit donner à
-  l'écriture de table l'horloge de ses arguments.
 - **Groupes récursifs.** La variabilité actuelle donne à toutes les projections d'un
   groupe la même valeur. L'horloge est calculée par projection. Les deux coïncident si
   chaque définition traverse un retard, ce qui devrait être le cas après
