@@ -1,6 +1,6 @@
 # Un calcul d'horloges pour Faust
 
-**[Brouillon v5 — document de travail, 12 novembre 2026]**
+**[Brouillon v6 — document de travail, 12 novembre 2026]**
 
 Objet : poser la théorie des horloges qui servira de base à la réimplémentation de
 `ondemand`, `upsampling` et `downsampling` sur `master-dev-certification-4`.
@@ -283,7 +283,7 @@ $$\frac{\vdash s_i : H_i \quad \text{les } H_i \text{ forment une chaîne}}{\vda
 \qquad
 \frac{}{\vdash \mathtt{Delay}^c(x,d) : c}\ (\textit{mem})
 \qquad
-\frac{\vdash \mathrm{def}_i(W) : H}{\vdash \mathtt{Proj}(i, W) : H}\ (\textit{proj})$$
+\frac{\vdash \mathrm{def}_j(W) : H_j \text{ pour tout } j}{\vdash \mathtt{Proj}(i, W) : \max_j H_j}\ (\textit{proj})$$
 
 $$\frac{\vdash \mathit{wi} : H_1 \quad \vdash \mathit{ws} : H_2 \quad H_1, H_2 \text{ en chaîne}}
 {\vdash \mathtt{WRTbl}(n, g, \mathit{wi}, \mathit{ws}) : \max(H_1, H_2)}\ (\textit{wrtbl})$$
@@ -553,22 +553,49 @@ Comparaison avec `VariabilityAlgebra` (`signals/sigattributes.cpp`), lue sur
 | bargraph | `s \| kBlock` | $\max(H(s), \mathbf{B})$ | oui |
 | `FIR` à un seul coefficient | celle de l'entrée | à traiter comme une opération | à aligner |
 | `WRTbl` | `kKonst \| wi \| ws` | maximum de l'index et de la valeur d'écriture | oui |
-| projection d'un groupe récursif | jointure de tout le groupe | horloge de sa propre définition | **à vérifier** |
+| projection d'un groupe récursif | jointure de tout le groupe | maximum des horloges du groupe | oui |
 
-Un point à examiner :
+**[D] Groupes récursifs.** Les projections d'un groupe partagent l'horloge la plus
+dense de ses définitions, comme elles partagent une variabilité. La règle « chaque
+projection a l'horloge de sa propre définition » serait plus fine, mais elle diverge de
+la variabilité quand un groupe contient une définition qui ne traverse aucun retard :
+c'est le cas de `examples/physicalModeling/faust-stk/glassHarmonica.dsp`, où un mode de
+gain nul laisse dans le groupe une définition au rythme des blocs. Lire cette
+définition sur l'horloge plus dense du groupe est neutre (loi de cohérence).
 
-- **Groupes récursifs.** La variabilité actuelle donne à toutes les projections d'un
-  groupe la même valeur. L'horloge est calculée par projection. Les deux coïncident si
-  chaque définition traverse un retard, ce qui devrait être le cas après
-  `normalizeRecGroups` ; ce n'est pas vérifié.
+### 10.3 Étape 0 de l'implémentation : faite
 
-### 10.3 Étape 0 de l'implémentation
+Commit `c3a3f794a` de la branche `ccr-faae028d-7grw0l` de `grame-cncm/faust`, sur
+`master-dev-certification-4`.
 
-Avant d'ajouter la moindre primitive, on peut écrire `ClockAlgebra` restreinte aux
-horloges naturelles ($\bot$, $\mathbf{B}$, $\mathbf{S}$) et passer le test de
-concordance sur toute la suite de tests existante. Aucun programme actuel n'a
-d'horloge dérivée : le test valide donc les règles de la section 4.4 sur l'existant,
-sans changer le code généré.
+- `compiler/signals/sigclock.{hh,cpp}` : `ClockAlgebra`, les règles de la section 4.4
+  restreintes aux horloges naturelles, et `ClockSolver`.
+- `checkClockConcordance`, actif sous la variable d'environnement
+  `FAUST_CHECK_CLOCKS`, appelé à côté de `checkLightTypes` dans `ScalarCompiler` et
+  `InstructionsCompiler`. Il imprime `clocks : <n> signals, <d> differ`.
+- Aucun code généré ne change : sans la variable, le contrôle ne fait rien.
+
+Résultats du test de concordance :
+
+| Corpus | Options | Programmes vérifiés | Signaux | Divergences |
+|---|---|---|---|---|
+| `tests/impulse-tests/dsp` (103) | `-lang ocpp` | 103 | 20 555 | 0 |
+| | `-lang cpp` | 103 | 36 359 | 0 |
+| | `-lang ocpp -double` | 103 | 20 622 | 0 |
+| | `-lang cpp -vec` | 102 | 36 311 | 0 |
+| `examples` (272) | `-lang ocpp` | 259 | 206 346 | 0 |
+| | `-lang cpp` | 259 | 225 484 | 0 |
+
+Les programmes non vérifiés sont refusés par le compilateur pour une raison étrangère
+aux horloges : `osc_enable.dsp` sous `-vec`, sept exemples sans `process`, six qui
+importent une bibliothèque absente.
+
+Le test a été rendu faux une fois : avec la règle du retard ramenée à l'horloge bloc,
+il signale 25 divergences sur `karplus.dsp`. La règle de `Mem` n'est en revanche pas
+exercée à ce stade de la compilation (la forme normale a déjà réécrit ces nœuds).
+
+L'étape 0 ne distingue pas l'horloge différée d'un générateur de table de l'horloge
+échantillon : les deux se projettent sur `kSamp`.
 
 ## 11. Questions ouvertes
 
