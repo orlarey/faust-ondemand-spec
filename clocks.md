@@ -14,12 +14,14 @@ pour la subdivision ; la compilation n'est plus une horloge.
 
 Sources : `spec.md` (ondemand v5), les documents Expressive E, les slides IFC-24, le
 code de `master-dev-ocpp-od-fir-2-FIR20` (dernière implémentation à horloges) et celui
-de `master-dev-certification-3` (la branche `-certification-4` n'est pas publiée à ce
-jour).
+de `master-dev-certification-4` (commit `106dda74a`). L'inventaire a été fait sur
+`-certification-3` ; `-4` en est le rebasage sur `master-dev`, et le code du
+compilateur n'en diffère que par les backends Rust et Julia et trois lignes de
+`dag_instructions_compiler.cpp`.
 
 ## 1. Constat : l'horloge est déjà là, sous quatre déguisements
 
-`certification-3` n'a aucun constructeur d'horloge, mais quatre mécanismes y
+`certification-4` n'a aucun constructeur d'horloge, mais quatre mécanismes y
 répondent déjà à la question « à quels instants ce signal est-il calculé ? » :
 
 | Mécanisme existant | Question à laquelle il répond | Où |
@@ -295,7 +297,7 @@ La loi de fusion en dépend.
 
 Pour un nœud à état, l'exécution est la définition, sans choix possible : un écho
 inaudible vieillit quand même. C'est la règle `isConditionBoundary` de
-`certification-3`, qui devient une conséquence et non plus une liste de cas.
+`certification-4`, qui devient une conséquence et non plus une liste de cas.
 
 Pour un nœud sans état, la loi de cohérence laisse le choix : toute horloge qui
 contient les instants demandés convient. Le choix est une optimisation :
@@ -330,7 +332,7 @@ sans état, et `enable`/`control` (annoncés comme remplacés par `ondemand` dan
 
 ## 8. Ce qui se réutilise, ce qui change
 
-**De `certification-3`**
+**De `certification-4`**
 
 | Existant | Rôle dans le calcul d'horloges |
 |---|---|
