@@ -1,6 +1,6 @@
 # Un calcul d'horloges pour Faust
 
-**[Brouillon v3 — document de travail, 12 novembre 2026]**
+**[Brouillon v4 — document de travail, 12 novembre 2026]**
 
 Objet : poser la théorie des horloges qui servira de base à la réimplémentation de
 `ondemand`, `upsampling` et `downsampling` sur `master-dev-certification-4`.
@@ -489,7 +489,7 @@ sans état, et `enable`/`control` (annoncés comme remplacés par `ondemand` dan
 |---|---|
 | `SignalAlgebra<V>` et `FixPointIterator` | `ClockAlgebra` pour l'horloge de définition. « Rien n'est défini par défaut » impose une règle par constructeur |
 | `tlib/descend.hh`, régime B | horloge de demande. Le commentaire prévoit déjà cet usage |
-| `VariabilityAlgebra`, `ComputabilityAlgebra` | deviennent des projections de l'horloge. À conserver d'abord en parallèle, avec un test de cohérence |
+| `VariabilityAlgebra`, `ComputabilityAlgebra` | conservées. L'horloge est calculée à côté, avec un test de concordance (section 10) |
 | `conditionAnnotation`, `Statement(cond)`, `ControlInst` | émission des régions à cadence booléenne |
 | frontière d'affichage, `controlCS` | instance de `Sample` vers $\mathbf{B}'$ |
 | zones de `Klass` (init, bloc, boucle) | les constantes, puis les horloges $\mathbf{B}$ et $\mathbf{S}$ |
@@ -514,18 +514,68 @@ sans état, et `enable`/`control` (annoncés comme remplacés par `ondemand` dan
 | sortie d'`upsampling` au dernier sous-échantillon | premier sous-échantillon (convention « début ») |
 | erreurs sans localisation, refus de `-vec` | à corriger |
 
-## 10. Questions ouvertes
+## 10. Concordance avec la variabilité
 
-- **[Q1]** Les constantes et les horloges $\mathbf{B}$, $\mathbf{S}$ remplacent-elles la
-  variabilité à terme, ou restent-elles une vue au-dessus de l'existant ?
-- **[Q2]** Sens canonique de la loi de distribution (section 5) : remontée de `Sample`
+**[D]** L'horloge est calculée à côté de la variabilité, sans la remplacer. Un test
+vérifie que les deux concordent.
+
+### 10.1 La projection
+
+$$\pi(\bot) = \mathtt{kKonst} \qquad \pi(\mathbf{B}) = \mathtt{kBlock} \qquad
+\pi(\mathbf{S}) = \mathtt{kSamp} \qquad \pi(p \triangleright r) = \mathtt{kSamp}$$
+
+**Test de concordance** : pour tout nœud $s$ de tout programme,
+$\pi(H(s)) = \mathrm{variabilité}(s)$, aux écarts répertoriés près.
+
+### 10.2 Règle par règle
+
+Comparaison avec `VariabilityAlgebra` (`signals/sigattributes.cpp`), lue sur
+`certification-4` :
+
+| Constructeur | Variabilité actuelle | Horloge | Concordance |
+|---|---|---|---|
+| nombres, `ForeignConst`, `Highest`, `Lowest` | `kKonst` | $\bot$ | oui |
+| widgets, `SoundFile`, `ForeignVar` | `kBlock` | $\mathbf{B}$ | oui |
+| `Input`, `Output` | `kSamp` | $\mathbf{S}$ | oui |
+| opérations, `Select2`, `RDTbl`, `Sum`, `Prod`, `Bpf` | jointure des arguments | maximum de la chaîne | oui |
+| `Mem`, `Delay`, `Prefix`, `IIR`, `IRM` | `kSamp` | argument $c$ | oui |
+| `Waveform`, `SoundFileBuffer`, fonction étrangère sans argument | `kSamp` | $\mathbf{S}$ (source) | oui |
+| `Table` (lecture seule), `Gen` | `kKonst` | $\bot$ (temps différé) | oui |
+| bargraph | `s \| kBlock` | $\max(H(s), \mathbf{B})$ | oui |
+| `FIR` à un seul coefficient | celle de l'entrée | à traiter comme une opération | à aligner |
+| `WRTbl` | `kKonst \| wi \| ws` | argument $c$ | **écart** |
+| projection d'un groupe récursif | jointure de tout le groupe | horloge de sa propre définition | **à vérifier** |
+
+Deux points à examiner :
+
+- **`WRTbl`.** La variabilité d'une table écrite est celle de son index et de son
+  signal d'écriture : une table écrite au rythme des blocs est `kBlock`. C'est
+  légitime, parce que réécrire la même valeur au même index est sans effet. La règle
+  (*mem*) lui donnerait $\mathbf{S}$. Il faut soit accepter l'écart, soit donner à
+  l'écriture de table l'horloge de ses arguments.
+- **Groupes récursifs.** La variabilité actuelle donne à toutes les projections d'un
+  groupe la même valeur. L'horloge est calculée par projection. Les deux coïncident si
+  chaque définition traverse un retard, ce qui devrait être le cas après
+  `normalizeRecGroups` ; ce n'est pas vérifié.
+
+### 10.3 Étape 0 de l'implémentation
+
+Avant d'ajouter la moindre primitive, on peut écrire `ClockAlgebra` restreinte aux
+horloges naturelles ($\bot$, $\mathbf{B}$, $\mathbf{S}$) et passer le test de
+concordance sur toute la suite de tests existante. Aucun programme actuel n'a
+d'horloge dérivée : le test valide donc les règles de la section 4.4 sur l'existant,
+sans changer le code généré.
+
+## 11. Questions ouvertes
+
+- **[Q1]** Sens canonique de la loi de distribution (section 5) : remontée de `Sample`
   vers les consommateurs, comme proposé ?
-- **[Q3]** Sorties qui *collectent* (`vectorize`/`serialize`, trames FFT,
+- **[Q2]** Sorties qui *collectent* (`vectorize`/`serialize`, trames FFT,
   `interleave`) : le générateur de table en est déjà une. À prévoir dans les types dès
   maintenant ?
-- **[Q4]** `switch(C0..Ck)` : horloges de cadences complémentaires. Faut-il une notion
+- **[Q3]** `switch(C0..Ck)` : horloges de cadences complémentaires. Faut-il une notion
   d'horloges *exclusives* pour partager l'état ou le code ?
-- **[Q5]** Cadence quelconque ($r$ tantôt nul, tantôt supérieur à 1) : à conserver, ou
+- **[Q4]** Cadence quelconque ($r$ tantôt nul, tantôt supérieur à 1) : à conserver, ou
   à restreindre à la sélection et à la subdivision pures ?
-- **[Q6]** Cadence définie sur $\mathbf{B}$ (ondemand piloté par un slider) : la région
+- **[Q5]** Cadence définie sur $\mathbf{B}$ (ondemand piloté par un slider) : la région
   doit-elle sortir de la boucle d'échantillons ?
