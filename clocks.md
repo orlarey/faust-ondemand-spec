@@ -1,6 +1,6 @@
 # Un calcul d'horloges pour Faust
 
-**[Brouillon v6 — document de travail, 12 novembre 2026]**
+**[Brouillon v7 — document de travail, 12 novembre 2026]**
 
 Objet : poser la théorie des horloges qui servira de base à la réimplémentation de
 `ondemand`, `upsampling` et `downsampling` sur `master-dev-certification-4`.
@@ -596,6 +596,28 @@ exercée à ce stade de la compilation (la forme normale a déjà réécrit ces 
 
 L'étape 0 ne distingue pas l'horloge différée d'un générateur de table de l'horloge
 échantillon : les deux se projettent sur `kSamp`.
+
+### 10.4 Étape 1 : le front-end des régions d'horloge, fait
+
+Commits `dc1d83c1d` (sources) et `314a6dc05` (lexer et parser régénérés).
+
+- `ondemand(P)`, `upsampling(P)`, `downsampling(P)` : trois mots réservés, trois
+  boîtes unaires, de type $(1+n) \to m$ pour $P : n \to m$.
+- Évaluation, simplification, préparation des motifs, impression (`-e`, messages
+  d'erreur), parcours et transformation de boîtes, complexité.
+- Un seul schéma graphique pour les trois (`clockRegionSchema`), là où `FIR20` en avait
+  trois copies : un cadre portant le mot-clé et l'entrée de cadence (`run` ou `rate`).
+- La propagation refuse une région en la nommant : les signaux n'ont pas encore
+  d'horloge.
+- Test de régression `tests/compile-tests/clock-regions.py`, ajouté à `check-scripts`.
+
+Le parser suivi par git était généré par bison 2.3. Il l'est ici par bison 3.8.2, seul
+disponible : le fichier diffère de bout en bout, d'où le commit séparé, à régénérer
+avec l'outil d'origine avant une intégration. Le code émis est identique à celui de
+`certification-4` sur la suite d'impulsions (309 compilations) et sur les exemples (272).
+
+Non fait à cette étape : l'API publique des boîtes (`box_signal_api.cpp`) et les motifs
+de filtrage portant sur une région.
 
 ## 11. Questions ouvertes
 
