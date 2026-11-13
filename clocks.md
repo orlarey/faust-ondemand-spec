@@ -1,634 +1,415 @@
 # Un calcul d'horloges pour Faust
 
-**[Brouillon v7 — document de travail, 12 novembre 2026]**
+**[Spécification, brouillon v8 — 13 novembre 2026]**
 
-Objet : poser la théorie des horloges qui servira de base à la réimplémentation de
-`ondemand`, `upsampling` et `downsampling` sur `master-dev-certification-4`.
-Ce document ne spécifie que la logique des horloges ; il ne décrit pas encore
-l'implémentation. Les propositions notées **[P]** sont des choix de conception
-soumis à discussion, les points notés **[Q]** sont des questions ouvertes, les points
-notés **[D]** sont décidés.
+Objet : la théorie des horloges qui servira de base à `ondemand`, `upsampling` et
+`downsampling` sur la lignée `master-dev-certification`.
 
-Changements depuis la v2 : **discipline de chaîne**. Les arguments d'un calcul sans
-mémoire ont toujours des horloges totalement ordonnées, et l'horloge du résultat est
-celle de l'un d'eux. Pour cela la sortie d'une région est toujours ramenée sur
-l'horloge parente, et une constante n'a pas d'horloge propre.
+**Statut.** Décision du 13 novembre : on spécifie, on n'implémente pas. L'implémentation
+ne commencera qu'après la bascule de `master-dev` sur la branche de certification. Le
+but de la spécification est d'être simple, régulière, et de proposer les bonnes
+abstractions.
 
-Sources : `spec.md` (ondemand v5), les documents Expressive E, les slides IFC-24, le
-code de `master-dev-ocpp-od-fir-2-FIR20` (dernière implémentation à horloges) et celui
-de `master-dev-certification-4` (commit `106dda74a`). L'inventaire a été fait sur
-`-certification-3` ; `-4` en est le rebasage sur `master-dev`, et le code du
-compilateur n'en diffère que par les backends Rust et Julia et trois lignes de
-`dag_instructions_compiler.cpp`.
+Cette version réécrit le calcul autour de quatre idées : une seule construction
+d'horloge, une seule relation entre horloges (le raffinement), une seule opération qui
+change d'horloge (`On`), et une place pour l'horloge dans la signature algébrique. Les
+notes **[D]** sont des décisions prises, **[P]** des propositions, **[Q]** des questions.
 
-## 1. Constat : l'horloge est déjà là, sous quatre déguisements
+Sources : `spec.md` (ondemand v5), les documents Expressive E, les slides IFC-24, et
+dans `faust-migration` : `FAUSTALGEBRA.md`, `LES-ALGEBRES-DE-TRANSFORMATION.md`,
+`ATTRIBUTES.md`, `FIXPOINT-SPEC.md`, `LA-FORME-DE-CALCUL.md`.
 
-`certification-4` n'a aucun constructeur d'horloge, mais quatre mécanismes y
-répondent déjà à la question « à quels instants ce signal est-il calculé ? » :
+## 1. Le calcul en une page
 
-| Mécanisme existant | Question à laquelle il répond | Où |
-|---|---|---|
-| Variabilité `kKonst`/`kBlock`/`kSamp` et calculabilité `kComp`/`kInit`/`kExec` | init, une fois par bloc, ou à chaque échantillon ? | `VariabilityAlgebra`, `ComputabilityAlgebra` (`signals/sigattributes.cpp`) |
-| Annotation de condition (`conditionAnnotation`, `Statement(cond, …)`) | ce nœud n'est calculé que si la garde est vraie | `generator/compile_scal.cpp`, `tlib/dcond.hh` |
-| Frontière d'affichage (`computeDisplayFrontier`, `controlCS`) | les cônes des bargraphs sont évalués une fois par bloc, sur les valeurs de fin de bloc | `generator/compile_scal.cpp` |
-| Générateurs de tables (`sigGen`) | un signal entier calculé hors temps réel, à l'initialisation | tables, waveforms |
+1. Le temps est un ensemble totalement ordonné d'**instants**. Une **horloge** est un
+   ensemble d'instants, ses **tops**. Un **signal** a une horloge et une valeur à chacun
+   de ses tops.
+2. Un signal se **lit** à un instant quelconque : sa valeur à son dernier top, et $0$
+   avant le premier.
+3. Il y a une horloge primitive, celle des blocs, et **une construction** :
+   $p \triangleright r$ a $r(\tau)$ tops à chaque top $\tau$ de $p$.
+4. Il y a **une relation** : $c$ *raffine* $p$ quand $c$ s'obtient de $p$ en ajoutant
+   des tops. Un signal se lit sans perte sur toute horloge qui raffine la sienne.
+5. Il y a **une opération** qui change d'horloge : `On(c, x)`, « $x$ vu de $c$ ».
+6. Les opérations qui **comptent le temps** (retards, filtres) portent leur horloge.
+   Les autres ont l'horloge la plus fine de leurs arguments.
+7. Dans un contexte, les horloges des signaux forment toujours une **chaîne**.
 
-L'ancienne implémentation (`FIR20`) ajoutait un cinquième mécanisme, séparé des
-quatre autres : l'environnement d'horloge, porté par des nœuds enveloppes
-`sigClocked(env, s)`.
+## 2. Le temps
 
-La thèse de ce document est que ces cinq mécanismes sont des instances d'une seule
-notion, et qu'un seul calcul peut les couvrir.
+### 2.1 Instants, horloges, signaux
 
-## 2. Instants et horloges
+$\mathbb{T}$ est l'ensemble des instants, totalement ordonné. Une horloge est une
+partie de $\mathbb{T}$. Un signal d'horloge $H$ est une fonction $H \to \mathbb{R}$.
 
-### 2.1 Les instants
+Une **valeur** (un nombre, une constante calculée à l'initialisation) n'est pas un
+signal : elle est hors du temps et n'a pas d'horloge.
 
-On se donne un ensemble $\mathbb{T}$ d'**instants**, totalement ordonné. Une
-**horloge** est une partie de $\mathbb{T}$ ; ses éléments sont ses **tops**. Un signal
-d'horloge $H$ est une fonction $H \to \mathbb{R}$.
+### 2.2 La lecture
 
-Les horloges forment donc un treillis pour l'inclusion, avec l'union et
-l'intersection. $H_1 \subseteq H_2$ se lit « $H_1$ est plus rare que $H_2$ ».
-
-### 2.2 Les horloges naturelles
-
-Elles sont imposées par l'hôte, pas par le programme.
-
-| Horloge | Tops |
-|---|---|
-| $\mathbf{S}$ | les échantillons $0, 1, 2, \ldots$ |
-| $\mathbf{B}$ | les débuts de blocs |
-| $\mathbf{B}'$ | les fins de blocs (dernier échantillon de chaque bloc) |
-
-On a $\mathbf{B} \subset \mathbf{S}$ et $\mathbf{B}' \subset \mathbf{S}$. Les sliders
-sont des signaux sur $\mathbf{B}$, les entrées audio des signaux sur $\mathbf{S}$.
-Toutes les horloges naturelles ont un top à l'instant $0$.
-
-Une **constante** n'a pas d'horloge propre : elle prend celle du calcul qui l'utilise.
-On note $\bot$ cette absence d'horloge, avec $\bot \subseteq H$ pour toute horloge $H$.
-Cela couvre les valeurs connues à la compilation et celles calculées à
-l'initialisation (`SR`, tailles de tables). On sait que
-$\mathbf{B} \subset \mathbf{S}$ sans savoir quel sous-ensemble : la sémantique d'un
-programme ne doit pas en dépendre (voir 4.5).
-
-La compilation n'est pas une horloge. Un calcul fait par le compilateur relève de
-l'étagement, pas d'un instant d'exécution.
-
-### 2.3 Les horloges dérivées
-
-Une horloge dérivée est construite à partir d'une horloge parente $p$ et d'un
-**signal de cadence** $r$, entier positif ou nul, lu sur $p$ :
-
-$$p \triangleright r = \{\tau \cdot \tfrac{j}{r(\tau)} \mid \tau \in p,\ 0 \le j < r(\tau)\}$$
-
-$r(\tau)$ est le nombre de tops de la nouvelle horloge attachés au top $\tau$ de $p$.
-L'instant $\tau \cdot q$, pour une fraction $q \in [0,1[$, est situé entre $\tau$ et
-le top suivant de $p$, à la proportion $q$ de l'intervalle. Les instants de
-$\mathbb{T}$ sont ainsi des suites finies de fractions, ordonnées lexicographiquement.
-
-**[D] Convention « début ».** $\tau \cdot 0 = \tau$ : le premier sous-instant *est*
-l'instant parent.
-
-Deux cas utiles :
-
-- $r \le 1$ : **sélection**. $p \triangleright r \subseteq p$.
-- $r \ge 1$ : **subdivision**. $p \subseteq p \triangleright r$, grâce à la convention
-  « début ».
-
-| Primitive | Cadence $r$ | Relation à $p$ | Code produit par `FIR20` |
-|---|---|---|---|
-| `ondemand(P)(h)` | $h \in \{0,1\}$ | $\subseteq p$ | `if (h) {…}` |
-| `downsampling(P)(N)` | $[t \bmod N = 0]$ | $\subseteq p$ | `if (cpt % N == 0) {…}` |
-| `upsampling(P)(N)` | $N$ | $\supseteq p$ | `for (j < N) {…}` |
-
-Les trois primitives sont donc une seule construction.
-
-**[D] Égalité.** Deux horloges dérivées sont égales si elles ont même parent et même
-signal de cadence, comparé par identité d'arbre après mise en forme normale.
-L'identité est *structurelle* : deux `ondemand` pilotés par le même $h$ ont la même
-horloge. Deux écritures différentes d'une même cadence peuvent rester distinctes ; on
-y perd une simplification, pas la correction.
-
-### 2.4 Le temps différé
-
-Le temps différé précède le temps réel : ses instants sont antérieurs à l'échantillon
-$0$. Le remplissage d'une table de taille $n$ est un signal sur une horloge finie
-$\mathbf{G}_n$ de $n$ tops, tous situés avant $0$. C'est la même construction qu'une
-subdivision, sur un axe qui n'est pas celui des échantillons.
-
-Seule la sortie diffère : la table *collecte* les $n$ valeurs au lieu de n'en lire
-qu'une. Elle est complète à l'instant $0$, donc pour tous les lecteurs en temps réel.
-Les calculs d'initialisation s'exécutent eux aussi en temps différé ; leur résultat
-est une constante pour le temps réel.
-
-### 2.5 La fréquence nominale
-
-Chaque horloge dérivée déclare un rapport $\rho$ : $N$ pour un `upsampling`, $1/N$
-pour un `downsampling`, $1$ pour un `ondemand`. Il n'affecte pas les tops. Il donne la
-fréquence d'échantillonnage vue à l'intérieur : $\mathrm{SR}_c = \rho \cdot \mathrm{SR}_p$,
-comme dans `FIR20`.
-
-## 3. La règle de lecture
-
-### 3.1 Définition
-
-La valeur d'un signal $x$ d'horloge $H$, **lue** à un instant $t$ quelconque de
-$\mathbb{T}$, est sa valeur au dernier top de $H$ qui ne dépasse pas $t$ :
+La valeur d'un signal $x$ d'horloge $H$, lue à un instant $t$ quelconque :
 
 $$x\lfloor t \rfloor = x(\max\{u \in H \mid u \le t\}) \qquad \text{et } 0 \text{ s'il n'y a pas encore eu de top}$$
 
-C'est l'instant le plus proche qui respecte la causalité. La règle est définie pour
-toute paire d'horloges, comparables ou non. Le « $\le$ » admet la lecture au même
-instant ; un cycle de dépendances doit donc contenir un retard, comme aujourd'hui.
+C'est l'instant le plus proche qui respecte la causalité. Le « $\le$ » admet la lecture
+au même instant : un cycle de dépendances doit contenir un retard.
 
-### 3.2 Les trois cas
+**Cohérence.** Si $H \subseteq H'$, lire $x$ directement ou en passant par $H'$ donne
+le même résultat. Passer par une horloge qui contient la sienne est neutre ; passer par
+une autre peut perdre de l'information.
 
-Soit un calcul fait sur $H_0$, qui lit un argument d'horloge $H_i$ :
+## 3. Les horloges
 
-| Cas | Ce que fait la lecture | Perte |
+### 3.1 Une primitive, une construction
+
+$$K ::= \mathbf{B} \;\mid\; K \triangleright r$$
+
+- $\mathbf{B}$ est l'horloge des **blocs** : un top au début de chaque appel de
+  `compute`. Elle est donnée par l'hôte.
+- $p \triangleright r$ est l'horloge **dérivée** de $p$ par le signal de **cadence**
+  $r$, entier positif ou nul, d'horloge $p$. Elle a $r(\tau)$ tops à chaque top $\tau$
+  de $p$ :
+
+$$p \triangleright r = \{\tau \cdot \tfrac{j}{r(\tau)} \mid \tau \in p,\ 0 \le j < r(\tau)\}$$
+
+L'instant $\tau \cdot q$ est situé entre $\tau$ et le top suivant de $p$, à la
+proportion $q$. **[D] Convention « début »** : $\tau \cdot 0 = \tau$, le premier
+sous-instant est l'instant parent.
+
+L'horloge des **échantillons** n'est pas primitive : $\mathbf{S} = \mathbf{B} \triangleright \mathit{count}$,
+où $\mathit{count}$ est la taille du bloc.
+
+**[D] Égalité.** Deux horloges sont égales si elles ont même parent et même signal de
+cadence, comparé par identité d'arbre après mise en forme normale.
+
+### 3.2 Le raffinement
+
+$c$ **raffine** $p$, noté $p \le c$, quand $c = p \triangleright r$ avec $r \ge 1$, ou
+par transitivité. Alors $p \subseteq c$ (par la convention « début »), et les deux
+horloges ont le même premier top.
+
+- $r \ge 1$ : **subdivision**, $c$ raffine $p$.
+- $r \le 1$ : **sélection**, $c \subseteq p$, mais $c$ ne raffine pas $p$ et $p$ ne
+  raffine pas $c$.
+
+Chaque horloge a un seul parent : les horloges que $c$ raffine forment une **chaîne**,
+notée $\mathrm{Ch}(c)$. Par exemple
+$\mathrm{Ch}(\mathbf{S} \triangleright 4) = \{\mathbf{B}, \mathbf{S}, \mathbf{S} \triangleright 4\}$
+et $\mathrm{Ch}(\mathbf{S} \triangleright h) = \{\mathbf{S} \triangleright h\}$ pour
+une sélection.
+
+Le raffinement est la seule relation du calcul. Il est décidé par la forme du terme et
+par la preuve $r \ge 1$, jamais en comparant deux horloges quelconques.
+
+### 3.3 Les trois primitives du langage
+
+| Primitive | Cadence | Fréquence vue à l'intérieur |
 |---|---|---|
-| $H_i \subseteq H_0$ (argument plus rare) | maintien de la dernière valeur ($\uparrow$ de la spec v5) | non |
-| $H_i \supseteq H_0$ (argument plus dense) | échantillonnage ($\downarrow$ de la spec v5) | oui |
-| incomparables | maintien puis échantillonnage | oui |
+| `ondemand(P)(h)` | $h$ | $\mathrm{SR}$ |
+| `upsampling(P)(N)` | $N$ | $N \cdot \mathrm{SR}$ |
+| `downsampling(P)(N)` | un top sur $N$ | $\mathrm{SR} / N$ |
 
-**Compatibilité.** Deux horloges sont compatibles si elles sont comparables pour
-l'inclusion. La lecture se réduit alors à un maintien ou à un échantillonnage pur.
+Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand`
+dont la demande est un compteur modulo $N$ écrit sur l'horloge parente. La fréquence
+d'échantillonnage appartient à la primitive, pas à l'horloge : elle est résolue à la
+propagation.
 
-La règle de lecture reste définie pour des horloges incomparables, mais on ne s'en
-sert que dans `Sample` (section 4.3). Partout ailleurs, la traduction garantit des
-horloges compatibles (section 4.1).
+### 3.4 Le temps différé
 
-### 3.3 Loi de cohérence
+Le remplissage d'une table est le calcul d'un signal sur une horloge finie
+$\mathbf{D}_n$, dont les $n$ tops précèdent tous l'instant $0$. C'est une seconde
+racine. La table collecte les $n$ valeurs ; pour le temps réel c'est une valeur.
 
-Si $H \subseteq H'$, lire $x$ (d'horloge $H$) directement ou en passant par $H'$ donne
-le même résultat :
+Le temps-programme (compilation, initialisation, exécution) n'est pas une horloge de
+signal : c'est la calculabilité, l'autre axe de `ATTRIBUTES.md`.
 
-$$x\lfloor \lfloor t \rfloor_{H'} \rfloor = x\lfloor t \rfloor$$
+## 4. Les opérations
 
-Passer par une horloge plus dense est toujours neutre. Passer par une horloge plus rare
-perd de l'information : c'est une véritable opération.
+### 4.1 Trois sortes d'opérations
 
-## 4. Les signaux et leurs horloges
+| Sorte | Exemples | Horloge du résultat |
+|---|---|---|
+| **sans mémoire** | arithmétique, `select2`, lecture et écriture de table | la plus fine de celles des arguments |
+| **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, fonction étrangère sans argument | l'horloge $k$ qu'elle porte |
+| **changement d'horloge** | `On` | l'horloge $k$ qu'elle porte |
 
-### 4.1 Calculs sans mémoire
-
-Un calcul sans mémoire n'a pas d'horloge propre. Sa valeur ne peut changer qu'aux
-instants où l'un de ses arguments change.
-
-**[D] Discipline de chaîne.** Les horloges des arguments d'un calcul sans mémoire sont
-toujours totalement ordonnées par l'inclusion. L'horloge du résultat est la plus dense,
-donc celle de l'un des arguments. Le résultat est un signal sur cette horloge : il est
-défini à ses tops, et se lit $0$ avant le premier.
-
-Ce n'est pas une contrainte imposée à l'utilisateur. C'est un **invariant** que la
-traduction établit (section 4.3) et que chaque transformation doit préserver. Sa
-vérification est une obligation de certification : une violation est un défaut du
-compilateur, pas une erreur du programme.
-
-Un calcul dont tous les arguments sont des constantes est une constante.
-
-### 4.2 Calculs avec mémoire
-
-Un calcul avec mémoire impose son horloge, parce que son état avance au rythme d'une
-horloge précise :
+Une opération est **à horloge** quand son résultat dépend du nombre de tops écoulés. Un
+retard de 1 sur une horloge n'est pas un retard de 1 sur une autre :
 
 ```faust
 ramp = +(1) ~ _;
-process = ramp, ondemand(ramp);   // deux rampes distinctes, deux états distincts
+process = ramp, ondemand(ramp);   // deux rampes distinctes
 ```
 
-**[P]** Chaque constructeur à état reçoit son horloge en **argument**. L'horloge est
-un terme ordinaire, hash-consé, dont la cadence $r$ est un sous-arbre visité par
-toutes les transformations.
+L'écriture de table n'en est pas une : réécrire la même valeur au même index est sans
+effet, son état ne compte pas le temps. **[D]**
 
-| Constructeur | Horloge |
-|---|---|
-| `Delay`$^c(x, d)$, `Prefix`$^c$, `FIR`$^c$, `IIR`$^c$, `IRM`$^c$ | argument $c$ |
-| `Sample`$^c(x)$ | argument $c$ |
+### 4.2 `On` : voir un signal d'une autre horloge
 
-**[D] L'écriture de table fait exception.** L'état d'un retard dépend du nombre de
-tops écoulés ; celui d'une table écrite ne dépend que des valeurs écrites. Écrire deux
-fois la même valeur dans la même case est sans effet : la table ne change qu'aux
-instants où son index ou sa valeur d'écriture change. `WRTbl` ne porte donc pas
-d'horloge ; la sienne est la plus dense de celles de ces deux arguments, comme pour un
-calcul sans mémoire. C'est la règle de la variabilité actuelle.
+$\mathtt{On}(k, x)$ est le signal d'horloge $k$ qui vaut $x\lfloor t \rfloor$ à chaque
+top $t$ de $k$. Appliqué à une valeur $v$, c'est le signal d'horloge $k$ qui vaut $v$ à
+chaque top.
 
-Un calcul à mémoire d'horloge $c$ **lit ses arguments aux tops de $c$**, par la règle
-de lecture. `Delay`$^c(x, d)$ est donc défini quelle que soit l'horloge de $x$ : il
-retarde de $d$ tops de $c$ ce que $c$ voit de $x$.
+Selon les horloges, `On` échantillonne (vers une horloge plus rare), maintient (vers
+une horloge qui contient celle de $x$), ou les deux.
 
-Les groupes récursifs ne portent pas d'horloge. La composition `~` introduit un retard
-d'un top de l'horloge lexicale, `Delay`$^c(\mathtt{Proj}(i,W), 1)$, et c'est ce retard
-qui distingue les deux rampes de l'exemple.
+### 4.3 Règles d'horloge
 
-Cela remplace les enveloppes `sigClocked`, qui obligeaient chaque règle de réécriture
-à savoir les traverser. Cela corrige aussi un défaut de `FIR20` : l'environnement y
-embarquait le signal $H$ brut, que les passes ne transformaient jamais.
+On note $\vdash s : k$ pour « $s$ est un signal d'horloge $k$ » et $\vdash s : \bot$
+pour « $s$ est une valeur ». $\bot \le k$ pour tout $k$.
 
-### 4.3 L'échantillonnage
-
-`Sample`$^c(x)$ est le calcul à mémoire le plus simple : le signal d'horloge $c$ qui
-vaut $x\lfloor t \rfloor$ en chaque top $t$ de $c$. C'est le seul nœud qui change
-l'horloge d'un signal. Il échantillonne quand $x$ est plus dense que $c$ et maintient
-quand $x$ est plus rare ; pour une constante, il donne le signal d'horloge $c$ qui vaut
-cette constante à chaque top.
-
-Traduction des trois primitives, pour $P : n \to m$ et $c = p \triangleright r$,
-l'indice de $[\![\cdot]\!]$ étant l'horloge lexicale courante :
-
-$$[\![\mathtt{clocked}(P)]\!]_p(r, x_1..x_n) = (\mathtt{Sample}^p(\mathtt{Sample}^c(y_1)), \ldots)
-\quad\text{où}\quad (y_1..y_m) = [\![P]\!]_c(\mathtt{Sample}^c(x_1), \ldots)$$
-
-Toute source créée dans $P$ est traduite de même : un slider y devient
-`Sample`$^c$`(slider)`, un signal extérieur capturé aussi.
-
-**Chaîne d'un contexte.** Les horloges qu'un signal peut avoir dans le contexte
-lexical $c$ forment une chaîne $\mathrm{Ch}(c)$ :
-
-- $\mathrm{Ch}(\mathbf{S}) = \{\mathbf{B}, \mathbf{S}\}$ ;
-- si $c = p \triangleright r$ est une subdivision : $\mathrm{Ch}(c) = \mathrm{Ch}(p) \cup \{c\}$ ;
-- sinon : $\mathrm{Ch}(c) = \{c\}$.
-
-**Entrée.** `Sample`$^c(x)$ s'efface quand l'horloge de $x$ est déjà dans
-$\mathrm{Ch}(c)$. C'est le cas d'un slider au niveau principal, et de toute entrée
-d'un `upsampling` : **[D]** l'entrée y est maintenue sur tous les sous-instants. Un
-bourrage de zéros s'écrit dans $P$, avec un compteur. À l'entrée d'un `ondemand` ou
-d'un `downsampling`, rien ne s'efface.
-
-**[D] Sortie : passage par le parent.** `Sample`$^p$ en sortie ne s'efface jamais. La
-sortie d'une région est un signal de l'horloge parente, quelle que soit la primitive :
-
-- `ondemand`, `downsampling` : `Sample`$^p$ maintient la dernière valeur ;
-- `upsampling` : `Sample`$^p$ décime en gardant le **premier** sous-échantillon.
-
-Dans un contexte $c$, tout signal a donc une horloge de $\mathrm{Ch}(c)$, ou est une
-constante : c'est la discipline de chaîne. Deux régions sœurs ne se lisent jamais
-directement, et chaque région reste un bloc indépendant.
-
-**Écart avec `FIR20`** : la sortie d'un `upsampling` y était le dernier
-sous-échantillon. L'entrée y était pourtant visible de tous les sous-instants, ce qui
-n'est cohérent avec aucun ordre total des instants.
-
-### 4.4 Règles d'horloge
-
-On note $\vdash s : H$ pour « $H$ est l'horloge de $s$ ».
-
-$$\frac{}{\vdash k : \bot} \quad
-\frac{}{\vdash \mathrm{SR} : \bot} \quad
-\frac{}{\vdash \mathit{slider} : \mathbf{B}} \quad
+$$\frac{}{\vdash \mathit{nombre} : \bot} \qquad
+\frac{}{\vdash \mathit{slider} : \mathbf{B}} \qquad
 \frac{}{\vdash \mathit{input}_i : \mathbf{S}}$$
 
-$$\frac{\vdash s_i : H_i \quad \text{les } H_i \text{ forment une chaîne}}{\vdash \star(s_1,\ldots,s_n) : \max_i H_i}\ (\textit{op})
+$$\frac{\vdash s_i : k_i \quad \text{les } k_i \text{ en chaîne}}{\vdash \star(s_1,\ldots,s_n) : \max_i k_i}\ (\textit{op})
 \qquad
-\frac{}{\vdash \mathtt{Delay}^c(x,d) : c}\ (\textit{mem})
+\frac{\vdash s_i : k_i \le k}{\vdash \mathtt{Delay}(k, s_1, s_2) : k}\ (\textit{mem})
 \qquad
-\frac{\vdash \mathrm{def}_j(W) : H_j \text{ pour tout } j}{\vdash \mathtt{Proj}(i, W) : \max_j H_j}\ (\textit{proj})$$
+\frac{}{\vdash \mathtt{On}(k, s) : k}\ (\textit{on})$$
 
-$$\frac{\vdash \mathit{wi} : H_1 \quad \vdash \mathit{ws} : H_2 \quad H_1, H_2 \text{ en chaîne}}
-{\vdash \mathtt{WRTbl}(n, g, \mathit{wi}, \mathit{ws}) : \max(H_1, H_2)}\ (\textit{wrtbl})$$
+$$\frac{\vdash \mathrm{def}_j(W) : k_j \quad \text{les } k_j \text{ en chaîne}}{\vdash \mathtt{Proj}(i, W) : \max_j k_j}\ (\textit{proj})
+\qquad
+\frac{\vdash r : k \le p \quad r \in \mathbb{N}}{p \triangleright r \ \text{bien formée}}\ (\textit{clk})$$
 
-$$\frac{r \in \mathbb{N} \text{ (prouvé par intervalle)}}
-{p \triangleright r \ \text{bien formée}}\ (\textit{clk})$$
+- (*op*) et (*mem*) demandent des arguments dont l'horloge est raffinée par celle du
+  résultat : ils sont lus sans perte. Seul `On` accepte un argument quelconque.
+- C'est la règle de temporalité de `ATTRIBUTES.md` : la borne intrinsèque de
+  l'opération, unie au join des arguments consultés.
+- (*proj*) : les projections d'un groupe partagent une horloge, comme elles partagent
+  une variabilité (« le groupe est couplé »). **[D]**
+- (*clk*) : $r$ entier positif est une obligation de certification, prise sur la forme
+  normale.
 
-Remarques :
+### 4.4 L'invariant de chaîne
 
-- L'horloge d'un signal est toujours **une** horloge, jamais un ensemble.
-- La prémisse de (*op*) est l'invariant de la section 4.1. Les calculs à mémoire n'ont
-  aucune prémisse : ils lisent leurs arguments par la règle de lecture.
-- L'horloge d'un calcul à mémoire ne dépend pas de ses arguments. Comme toute
-  référence récursive traverse un retard, le calcul des horloges se fait de bas en
-  haut sans point fixe. Le point fixe de `clkEnvInference` disparaît.
-- (*mem*) contient le fait que « c'est le retard qui rend un signal audio » :
-  `slider'` est `Delay`$^{\mathbf{S}}$`(slider, 1)`.
-- (*clk*) : la positivité et l'intégralité de $r$ sont des obligations de
-  certification. `FIR20` se contentait d'un avertissement.
-- L'inclusion n'est jamais à décider entre deux horloges quelconques : il suffit de
-  connaître la position de chacune dans la chaîne du contexte.
+**[D]** Dans le contexte lexical $c$, tout signal a une horloge de $\mathrm{Ch}(c)$.
 
-### 4.5 Frontière d'observation
+Les prémisses de (*op*), (*mem*) et (*proj*) sont donc toujours satisfaites. Ce n'est
+pas une contrainte pour l'utilisateur : la traduction établit l'invariant (section 5),
+chaque transformation doit le préserver, et sa vérification est une obligation de
+certification. Une violation est un défaut du compilateur.
 
-Un bargraph est un `Sample` vers $\mathbf{B}'$ (ou vers $\mathbf{B}$ : les deux
-conviennent, la fin de bloc est seulement moins coûteuse à émettre). Le résultat dépend
-de la taille des blocs. Un tel échantillonnage n'est admis que vers un puits et ne peut
-pas réalimenter un calcul. C'est la frontière d'affichage actuelle, reformulée.
+### 4.5 Règles de valeur
 
-## 5. Lois algébriques
+Pour les attributs de valeur (nature, booléanité, intervalle), `On(k, x)` porte $x$ :
 
-1. **Neutralité** : si l'horloge de $x$ est incluse dans $c$, `Sample`$^c(x)$ et $x$
-   se lisent partout de la même façon. On ne remplace l'un par l'autre que si la
-   discipline de chaîne est préservée (règles d'entrée et de sortie de 4.3).
-2. **Absorption** : $\mathtt{Sample}^c(\mathtt{Sample}^{c'}(x)) = \mathtt{Sample}^c(x)$
-   si $c \subseteq c'$. De même $\mathtt{Delay}^c(\mathtt{Sample}^c(x), d) = \mathtt{Delay}^c(x, d)$.
-3. **Distribution** : $\mathtt{Sample}^c(\star(x_1,x_2)) = \star(\mathtt{Sample}^c(x_1), \mathtt{Sample}^c(x_2))$.
-4. **Retards** : $\mathtt{Delay}^c(\mathtt{Delay}^c(x,a),b) = \mathtt{Delay}^c(x,a+b)$,
-   seulement à horloge égale.
-5. **Retard vu d'une sélection** : si $c \subseteq p$ et si $x$ est d'horloge $c$,
-   alors $\mathtt{Sample}^c(\mathtt{Delay}^p(\mathtt{Sample}^p(x), 1)) = \mathtt{Delay}^c(x, 1)$.
-   Un retard d'un top du parent, vu de la sélection, est un retard d'un top de la
-   sélection. La loi ne vaut que pour un retard de $1$.
-6. **Fusion** : `ondemand(P)(h) : ondemand(Q)(h)` $=$ `ondemand(P:Q)(h)`. Entre les
-   deux, `Sample`$^c$`(Sample`$^p(y))$ se réduit à $y$ par la loi 2. Elle est fausse
-   pour un `upsampling`, dont la sortie est décimée.
-7. **Composition** : $(p \triangleright h_1) \triangleright h_0 = p \triangleright (h_1 \cdot h_0)$
-   pour des cadences booléennes. C'est l'opérateur $h_0 \otimes h_1$ de la spec v5,
-   plus simple ici parce que les instants sont absolus.
-8. **Cas dégénérés** : $r = 1$ donne $p \triangleright r = p$, $r = 0$ donne l'horloge
+- quand $k$ est incluse dans l'horloge de $x$ (échantillonnage pur) : la valeur de $x$ ;
+- sinon : la valeur de $x$ **unie à** $0$, la lecture avant le premier top.
+
+Le maintien porte l'union avec la valeur initiale, exactement comme le retard dans
+`FIXPOINT-SPEC.md` ($Y@n = Y \sqcup \alpha(0)$). Le raffinement, lui, n'ajoute jamais
+de $0$ : une horloge et celles qui la raffinent ont le même premier top.
+
+Conséquence à garder en tête : une valeur sortie d'un `ondemand` a $0$ dans son
+intervalle, ce qui pèse sur la certification d'un retard ou d'un index qui en dépend.
+
+L'horloge d'une opération à horloge n'entre dans aucun attribut de valeur.
+
+## 5. La traduction des régions
+
+Pour $P : n \to m$, dans le contexte $p$, avec $c = p \triangleright r$ :
+
+$$[\![\mathtt{region}(P)]\!]_p(r, x_1..x_n) = (\mathtt{On}(p, \mathtt{On}(c, y_1)), \ldots)
+\quad\text{où}\quad (y_1..y_m) = [\![P]\!]_c(\mathtt{On}(c, x_1), \ldots)$$
+
+Toute feuille écrite dans $P$ (slider, entrée, signal extérieur capturé) est traduite
+$\mathtt{On}(c, \mathit{feuille})$. La composition `~` écrit un `Mem(c, …)`. Les
+nombres restent des valeurs.
+
+**Une seule loi décide de ce qui reste** : $\mathtt{On}(k, x) = x$ quand $x$ est un
+signal dont l'horloge est raffinée par $k$.
+
+| | `ondemand`, `downsampling` | `upsampling` |
+|---|---|---|
+| entrée `On(c, x)` | reste : échantillonnage | s'efface : $p \le c$, maintien sur les sous-instants |
+| sortie `On(c, y)` | s'efface si $y$ est un signal | s'efface si $y$ est un signal |
+| sortie `On(p, …)` | reste : maintien entre deux demandes | reste : premier sous-échantillon |
+
+La sortie est toujours un signal de l'horloge parente : c'est ce qui établit l'invariant
+de chaîne, sans règle particulière. Deux régions voisines ne se lisent jamais
+directement.
+
+## 6. Lois
+
+1. **Effacement** : $\mathtt{On}(k, x) = x$ si $x$ est un signal d'horloge $k' \le k$.
+2. **Absorption** : $\mathtt{On}(k, \mathtt{On}(k', x)) = \mathtt{On}(k, x)$ si
+   $k \subseteq k'$.
+3. **Distribution** : $\mathtt{On}(k, \star(x_1, x_2)) = \star(\mathtt{On}(k, x_1), \mathtt{On}(k, x_2))$.
+4. **Retards** : $\mathtt{Delay}(k, \mathtt{Delay}(k, x, a), b) = \mathtt{Delay}(k, x, a+b)$,
+   à horloge égale seulement.
+5. **Retard vu d'une sélection** : pour $c \subseteq p$ et $x$ d'horloge $c$,
+   $\mathtt{On}(c, \mathtt{Mem}(p, \mathtt{On}(p, x))) = \mathtt{Mem}(c, x)$.
+6. **Composition** : $(p \triangleright h_1) \triangleright h_0 = p \triangleright (h_1 \cdot h_0)$
+   pour des cadences booléennes. C'est $h_0 \otimes h_1$ de la spec v5.
+7. **Cas dégénérés** : $p \triangleright 1 = p$ ; $p \triangleright 0$ est l'horloge
    vide, dont tous les signaux se lisent $0$.
 
-**Constantes.** `ondemand(1)` se traduit en `Sample`$^p$`(Sample`$^c(1))$ : $0$
-jusqu'au premier top de $c$, puis $1$. C'est la sémantique de la spec v5. De même,
-dans un `ondemand`, $x + 1$ est un signal d'horloge $c$, qui se lit $0$ avant le
-premier top.
+La fusion `ondemand(P)(h) : ondemand(Q)(h)` $=$ `ondemand(P:Q)(h)` découle de la loi 2
+et de l'égalité structurelle. Elle est fausse pour un `upsampling`.
 
-**Forme canonique. [P]** La loi 3 se lit dans les deux sens. On propose de faire
-remonter `Sample` vers les consommateurs : il est alors absorbé par les calculs à
-mémoire (loi 2), et il n'en reste qu'un par sortie.
+**[P] Forme canonique** : la loi 3 fait remonter `On` vers les consommateurs.
 
-## 6. Exemples déroulés
+## 7. Exemples
 
 On note $c = \mathbf{S} \triangleright h$. Les codes sont ceux que les règles
 désignent ; ils n'ont pas été produits par un compilateur.
 
-### 6.1 Sample and hold
-
-```faust
-process = ondemand(_);        // entrées h, x
-```
-
-Traduction : `Sample`$^{\mathbf{S}}$`(Sample`$^c$`(Sample`$^c$`(x)))`. Par la loi 2
-il reste `Sample`$^{\mathbf{S}}$`(Sample`$^c(x))$ : échantillonnage sur $c$, maintien
-sur $\mathbf{S}$.
+**Sample and hold.** `ondemand(_)` donne $\mathtt{On}(\mathbf{S}, \mathtt{On}(c, x))$.
 
 ```c
-if (h) { fSample0 = input1[i]; }
-output0[i] = fSample0;
+if (h) { fOn0 = input1[i]; }
+output0[i] = fOn0;
 ```
 
-### 6.2 Bruit sous-échantillonné
+**Bruit sous-échantillonné.** `ba.beat(100) : ondemand(no.noise)`. Le générateur est un
+groupe $V$ de définition `Mem(c, Proj(0,V)) * 1103515245 + 12345`, d'horloge $c$. La
+sortie est $\mathtt{On}(\mathbf{S}, \mathtt{Proj}(0,V) \cdot 4{,}65\mathrm{e}{-10})$. Le
+code est celui des slides IFC-24.
 
-```faust
-process = ba.beat(100) : ondemand(no.noise);
-```
+**Ondemand imbriqués.** `ondemand(ondemand(P))` : par la loi 6, une seule horloge de
+cadence $h_1 \cdot h_0$.
 
-Le générateur est le groupe $V$ de définition `Delay`$^c$`(Proj(0,V), 1) * 1103515245 + 12345`.
-Le produit `Proj(0,V) * 4.65e-10` est d'horloge $c$ : la constante prend l'horloge de
-l'autre argument. La sortie est `Sample`$^{\mathbf{S}}$ de ce produit.
+**Récursion à travers la frontière.**
+`process(h) = y letrec { 'y = ondemand(+(1))(h, y); };` Par la loi 5 l'état passe dans
+la région : `if (h) { iRec0 = iRec0 + 1; }`.
 
-```c
-iVec0[0] = (iVec0[1] + 1) % 100;
-if (iVec0[0] == 0) {
-    iVec2[0] = 1103515245 * iVec2[1] + 12345;
-    fSample0 = 4.656613e-10f * float(iVec2[0]);
-    iVec2[1] = iVec2[0];
-}
-output0[i] = fSample0;
-iVec0[1] = iVec0[0];
-```
-
-C'est le code des slides IFC-24.
-
-### 6.3 Ondemand imbriqués
-
-```faust
-process = ondemand(ondemand(P));      // entrées h1, h0, x
-```
-
-$c_1 = \mathbf{S} \triangleright h_1$, puis $c_0 = c_1 \triangleright h_0$, $h_0$ étant
-lu aux tops de $c_1$. Par la loi 7, $c_0 = \mathbf{S} \triangleright (h_1 \cdot h_0)$.
-L'entrée `Sample`$^{c_0}$`(Sample`$^{c_1}$`(x))` se réduit à `Sample`$^{c_0}(x)$ par
-la loi 2. Les deux `ondemand` n'en font qu'un, de garde `h1 && h0`.
-
-### 6.4 Récursion à travers la frontière
-
-```faust
-process(h) = y letrec { 'y = ondemand(+(1))(h, y); };
-```
-
-Le groupe $U$, écrit sur $\mathbf{S}$, a pour définition
-`Sample`$^{\mathbf{S}}(z)$ avec $z =$ `Sample`$^c$`(Delay`$^{\mathbf{S}}$`(Proj(0,U), 1)) + 1`,
-d'horloge $c$. Le cycle contient un retard : il est causal. Par la loi 5, $z$ devient
-`Delay`$^c(z, 1) + 1$ : l'état passe dans la région, et il ne reste aucun calcul par
-échantillon.
-
-```c
-if (h) { iRec0[0] = iRec0[1] + 1; iRec0[1] = iRec0[0]; }
-output0[i] = iRec0[0];
-```
-
-### 6.5 Upsampling et filtre
-
-```faust
-process = upsampling(+ ~ *(0.5));     // entrées N, x
-```
-
-$c = \mathbf{S} \triangleright N$, avec $\mathbf{S} \subseteq c$. `Sample`$^c(x)$
-s'efface. Le filtre est le groupe $W$ de définition
-`x + 0.5 * Delay`$^c$`(Proj(0,W), 1)`. La sortie est `Sample`$^{\mathbf{S}}$`(Proj(0,W))`.
+**Upsampling et filtre.** `upsampling(+ ~ *(0.5))` : $c = \mathbf{S} \triangleright N$
+raffine $\mathbf{S}$, l'entrée s'efface, la sortie est $\mathtt{On}(\mathbf{S}, \mathtt{Proj}(0,W))$.
 
 ```c
 for (int j = 0; j < N; j++) {
     fRec0[0] = input1[i] + 0.5f * fRec0[1];
-    if (j == 0) { fSample0 = fRec0[0]; }
+    if (j == 0) { fOn0 = fRec0[0]; }
     fRec0[1] = fRec0[0];
 }
-output0[i] = fSample0;
+output0[i] = fOn0;
 ```
 
-### 6.6 Slider dans un ondemand
+**Constante.** `ondemand(1)` donne $\mathtt{On}(\mathbf{S}, \mathtt{On}(c, 1))$ : $0$
+jusqu'à la première demande, puis $1$. C'est la sémantique de la spec v5.
 
-```faust
-process = ondemand(*(hslider("gain", 1, 0, 1, 0.01)));
+## 8. La place dans l'approche algébrique
+
+### 8.1 L'horloge dans la signature
+
+L'arbre de signaux est l'algèbre initiale de la signature (`FAUSTALGEBRA.md`). Si
+l'arbre portait une horloge que la signature ignore, une transformation qui passe par
+`Delay(x, d)` rebâtirait un retard sans horloge : c'est la lacune de fidélité décrite
+dans `LES-ALGEBRES-DE-TRANSFORMATION.md`. L'horloge fait partie de la dénotation d'un
+retard ; sa place est dans la signature.
+
+**[P]** L'horloge est un opérande, pas une donnée : elle contient un signal, la
+cadence, que chaque interprétation interprète et chaque transformation transforme.
+
+```
+Clock(parent, rate)                    l'horloge dérivée ; ClockBlock, ClockSample les naturelles
+On(clk, x)
+Mem(clk, x)   Delay(clk, x, d)   Prefix(clk, x0, x)
+Fir(clk, x, coefs)   Iir(clk, x, coefs)   Irm(clk, x, c)   Waveform(clk, w)
 ```
 
-Dans la région : `Sample`$^c(x)$ `* Sample`$^c$`(gain)`, d'horloge $c$. Le gain est
-figé entre deux demandes, comme l'exige la propriété « la sortie reste constante
-jusqu'à la prochaine demande ».
-
-## 7. Horloge de définition, de demande, d'exécution
-
-- **Définition** : l'horloge de la section 4.4, calculée de bas en haut.
-- **Demande** : les horloges des consommateurs, propagée de haut en bas.
-- **Exécution** : l'horloge où le code est émis.
-
-Pour un nœud à état, l'exécution est la définition, sans choix possible : un écho
-inaudible vieillit quand même. C'est la règle `isConditionBoundary` de
-`certification-4`, qui devient une conséquence et non plus une liste de cas.
-
-Pour un nœud sans état, la loi de cohérence laisse le choix : toute horloge qui
-contient les instants demandés convient. Il en va de même d'un `Sample` qui maintient
-(sortie d'un `ondemand`) : il ne coûte qu'une variable. Le choix est une optimisation :
-
-- vers une horloge plus rare : appel par nécessité (ne pas calculer l'entrée d'un
-  `ondemand` quand il ne tourne pas) ;
-- vers une horloge moins dense : sortie des invariants de boucle (sliders hors de la
-  boucle d'échantillons, entrée d'un `upsampling`).
-
-Les gardes de `-lazyselect` sont alors des horloges booléennes anonymes sur du code
-sans état, et `enable`/`control` (annoncés comme remplacés par `ondemand` dans
-`compile_scal.hh`) n'ont plus de raison d'être.
-
-## 8. Causalité, mémoire, certification
-
-- **Causalité.** Une région d'horloge est un nœud du graphe de son parent. Toute
-  boucle de dépendances doit contenir un retard. $r$ ne peut pas dépendre
-  instantanément d'un signal de sa propre horloge.
-- **Mémoire.** L'état appartient au signal, pas à l'horloge. Chaque horloge a son
-  propre index de temps (un IOTA par horloge, comme dans `FIR20`). Lire un signal plus
-  rare coûte une variable qui garde la dernière valeur (le `PermVar` de `FIR20`).
-- **Horizon.** L'analyse d'intervalles affine en temps de `sighorizon` compte en
-  échantillons. Sur $p \triangleright r$, le temps local est borné par $\sup(r)$ fois
-  le temps parent. Une cadence de subdivision doit donc être bornée.
-- **Faux refus.** `tests/TESTING.md` signale deux défauts ouverts de l'analyse
-  d'intervalles (`-ftz`, `int()` d'une valeur non bornée puis masquée). Une cadence
-  écrite sous ces formes serait refusée par (*clk*).
-- **Invariant de la branche.** Une seule référence sémantique, indépendante du
-  backend, de la vectorisation et de l'ordonnancement. Les sections 2 et 3 la
-  fournissent.
-- **Vectorisation.** Une horloge de cadence constante est *périodique* : sa région peut
-  devenir une boucle sœur de longueur $N \cdot \mathit{count}$ ou $\mathit{count}/N$.
-  Une horloge dépendante des données reste scalaire dans sa région. `FIR20` refusait
-  `-vec` en bloc.
-
-## 9. Ce qui se réutilise, ce qui change
-
-**De `certification-4`**
-
-| Existant | Rôle dans le calcul d'horloges |
+| Algèbre | Valeur d'une horloge |
 |---|---|
-| `SignalAlgebra<V>` et `FixPointIterator` | `ClockAlgebra` pour l'horloge de définition. « Rien n'est défini par défaut » impose une règle par constructeur |
-| `tlib/descend.hh`, régime B | horloge de demande. Le commentaire prévoit déjà cet usage |
-| `VariabilityAlgebra`, `ComputabilityAlgebra` | conservées. L'horloge est calculée à côté, avec un test de concordance (section 10) |
-| `conditionAnnotation`, `Statement(cond)`, `ControlInst` | émission des régions à cadence booléenne |
-| frontière d'affichage, `controlCS` | instance de `Sample` vers $\mathbf{B}'$ |
-| zones de `Klass` (init, bloc, boucle) | les constantes, puis les horloges $\mathbf{B}$ et $\mathbf{S}$ |
-| `GroupPlan` (arbre de groupes) | hôte naturel d'un groupe « région d'horloge » |
-| boucles internes de `-fam` | modèle d'émission pour la boucle d'un `upsampling` |
-| IOTA global | à rendre propre à chaque horloge |
-| portes de test (canonicité, déterminisme, mémoire) | à étendre aux programmes à horloges |
+| arbres | le terme d'horloge |
+| horloges | l'horloge ; une opération à horloge vaut son horloge |
+| intervalles | les bornes de la cadence, pour convertir le temps local en temps parent |
+| nature, booléanité | rien |
 
-**De `FIR20`**
+**[Q] Une ou deux sortes.** Soit l'horloge est un `T` comme les étiquettes, soit la
+signature a deux paramètres, `FaustAlgebra<T, K>`. Avec deux sortes, confondre un
+signal et une horloge est une erreur de compilation, et chaque algèbre choisit son
+`K` ; en contrepartie toutes les algèbres existantes changent de forme. Non tranché.
 
-| Élément | Devenir |
-|---|---|
-| lexer, parser, boîtes, typage $(u+1) \to v$, schémas | repris tels quels |
-| `propagate(clockenv, …)` et adaptation de `SR` | repris, l'environnement devient le terme d'horloge |
-| formes `if` / `for` / compteur | reprises à l'émission |
-| `sigClocked`, `sigDoubleClocked` | remplacés par l'argument d'horloge des constructeurs à état |
-| `sigOD`/`sigUS`/`sigDS`, `sigSeq` | supprimés : la région se déduit de l'horloge d'exécution |
-| `sigTempVar`, `sigPermVar` | un seul nœud, `Sample`$^c$ |
-| `sigZeroPad` | supprimé : maintien en entrée, bourrage écrit par l'utilisateur |
-| `clkEnvInference` (point fixe, erreurs d'incomparabilité) | calcul direct ; l'incomparabilité devient une vérification d'invariant |
-| identité nominale des environnements | identité structurelle |
-| sortie d'`upsampling` au dernier sous-échantillon | premier sous-échantillon (convention « début ») |
-| erreurs sans localisation, refus de `-vec` | à corriger |
+### 8.2 Les deux formes
 
-## 10. Concordance avec la variabilité
+`LA-FORME-DE-CALCUL.md` distingue la forme normale, où l'on certifie, de la forme de
+calcul, qui porte les décisions comme données.
 
-**[D]** L'horloge est calculée à côté de la variabilité, sans la remplacer. Un test
-vérifie que les deux concordent.
+- **Forme normale.** L'horloge est l'opérande ci-dessus. La certification y prouve,
+  pour chaque horloge dérivée, que la cadence est un entier positif et borné.
+- **Forme de calcul.** La cadence est une décision : `Clock(parent, rate, rmin, rmax)`
+  porte ses bornes certifiées, comme `Delay(L, d, dmin, dmax)`. La génération y lit la
+  forme du code, sans relire d'intervalle : $r_{max} \le 1$ donne un `if`,
+  $r_{min} \ge 1$ une boucle. L'horloge se porte sur la ligne, `DelayLine(clk, x, n)` ;
+  ses lectures et les prises d'un `Fir` n'en ont pas besoin.
+- **Cône des décisions.** La cadence d'une horloge atteint une décision mémoire (le
+  nombre d'exécutions d'une région). Elle est dans le cône et n'est jamais réécrite par
+  la forme de calcul.
+- **Typage léger.** L'horloge y remplace la cadence (constante, bloc, échantillon),
+  dont elle est la généralisation.
 
-### 10.1 La projection
+### 8.3 Le point fixe
 
-$$\pi(\bot) = \mathtt{kKonst} \qquad \pi(\mathbf{B}) = \mathtt{kBlock} \qquad
-\pi(\mathbf{S}) = \mathtt{kSamp} \qquad \pi(p \triangleright r) = \mathtt{kSamp}$$
+L'horloge est un attribut exact. Sa graine pour une variable récursive est le bas
+($\bot$), et non une valeur pessimiste comme `kSamp` pour la variabilité : un groupe
+écrit dans un `ondemand` n'est pas sur l'horloge échantillon. Le calcul monte tout
+seul, parce que toute boucle traverse une opération à horloge. **[Q]** : garder le bas,
+ou fournir à l'itérateur l'horloge du contexte.
 
-**Test de concordance** : pour tout nœud $s$ de tout programme,
-$\pi(H(s)) = \mathrm{variabilité}(s)$, aux écarts répertoriés près.
+## 9. Où le code est exécuté
 
-### 10.2 Règle par règle
+L'horloge d'un signal dit quand sa valeur peut changer. Le compilateur choisit en plus
+où il émet le calcul.
 
-Comparaison avec `VariabilityAlgebra` (`signals/sigattributes.cpp`), lue sur
-`certification-4` :
+- Une opération à horloge s'exécute sur son horloge, sans choix : un écho inaudible
+  vieillit quand même. La règle `isConditionBoundary` de la branche en devient une
+  conséquence.
+- Une opération sans mémoire peut s'exécuter sur toute horloge qui contient les
+  instants où elle est lue (loi de cohérence). Vers une horloge plus rare, c'est
+  l'appel par nécessité ; vers une horloge moins fine, la sortie des invariants de
+  boucle.
 
-| Constructeur | Variabilité actuelle | Horloge | Concordance |
-|---|---|---|---|
-| nombres, `ForeignConst`, `Highest`, `Lowest` | `kKonst` | $\bot$ | oui |
-| widgets, `SoundFile`, `ForeignVar` | `kBlock` | $\mathbf{B}$ | oui |
-| `Input`, `Output` | `kSamp` | $\mathbf{S}$ | oui |
-| opérations, `Select2`, `RDTbl`, `Sum`, `Prod`, `Bpf` | jointure des arguments | maximum de la chaîne | oui |
-| `Mem`, `Delay`, `Prefix`, `IIR`, `IRM` | `kSamp` | argument $c$ | oui |
-| `Waveform`, `SoundFileBuffer`, fonction étrangère sans argument | `kSamp` | $\mathbf{S}$ (source) | oui |
-| `Table` (lecture seule), `Gen` | `kKonst` | $\bot$ (temps différé) | oui |
-| bargraph | `s \| kBlock` | $\max(H(s), \mathbf{B})$ | oui |
-| `FIR` à un seul coefficient | celle de l'entrée | à traiter comme une opération | à aligner |
-| `WRTbl` | `kKonst \| wi \| ws` | maximum de l'index et de la valeur d'écriture | oui |
-| projection d'un groupe récursif | jointure de tout le groupe | maximum des horloges du groupe | oui |
+Une région d'horloge est un nœud du graphe de son parent. Chaque horloge a son index de
+temps. Lire un signal hors de son horloge coûte une variable qui garde sa dernière
+valeur.
 
-**[D] Groupes récursifs.** Les projections d'un groupe partagent l'horloge la plus
-dense de ses définitions, comme elles partagent une variabilité. La règle « chaque
-projection a l'horloge de sa propre définition » serait plus fine, mais elle diverge de
-la variabilité quand un groupe contient une définition qui ne traverse aucun retard :
-c'est le cas de `examples/physicalModeling/faust-stk/glassHarmonica.dsp`, où un mode de
-gain nul laisse dans le groupe une définition au rythme des blocs. Lire cette
-définition sur l'horloge plus dense du groupe est neutre (loi de cohérence).
+## 10. État de l'implémentation
 
-### 10.3 Étape 0 de l'implémentation : faite
+Rien n'est implémenté au-delà de deux étapes sans effet sur le code généré, sur la
+branche `ccr-faae028d-7grw0l` de `grame-cncm/faust`, au-dessus de
+`master-dev-certification-4` :
 
-Commit `c3a3f794a` de la branche `ccr-faae028d-7grw0l` de `grame-cncm/faust`, sur
-`master-dev-certification-4`.
+- **Étape 0** (`c3a3f794a`) : `ClockAlgebra` restreinte aux horloges naturelles,
+  calculée à côté de la variabilité, et un test de concordance sous
+  `FAUST_CHECK_CLOCKS`. Aucune divergence sur la suite d'impulsions (103 programmes,
+  quatre jeux d'options) ni sur les exemples (259 programmes, environ 206 000 signaux).
+  Code généré identique à la référence sur 2 678 compilations.
+- **Étape 1** (`dc1d83c1d`, `314a6dc05`) : le front-end des trois primitives (mots
+  réservés, boîtes, typage, impression, schéma). La propagation les refuse. Le parser
+  est régénéré par bison 3.8.2 au lieu de 2.3, dans un commit séparé.
 
-- `compiler/signals/sigclock.{hh,cpp}` : `ClockAlgebra`, les règles de la section 4.4
-  restreintes aux horloges naturelles, et `ClockSolver`.
-- `checkClockConcordance`, actif sous la variable d'environnement
-  `FAUST_CHECK_CLOCKS`, appelé à côté de `checkLightTypes` dans `ScalarCompiler` et
-  `InstructionsCompiler`. Il imprime `clocks : <n> signals, <d> differ`.
-- Aucun code généré ne change : sans la variable, le contrôle ne fait rien.
+La projection de l'horloge sur la variabilité : une valeur donne `kKonst`,
+$\mathbf{B}$ donne `kBlock`, $\mathbf{S}$ et toute horloge dérivée donnent `kSamp`.
 
-Résultats du test de concordance :
+## 11. Décisions et questions
 
-| Corpus | Options | Programmes vérifiés | Signaux | Divergences |
-|---|---|---|---|---|
-| `tests/impulse-tests/dsp` (103) | `-lang ocpp` | 103 | 20 555 | 0 |
-| | `-lang cpp` | 103 | 36 359 | 0 |
-| | `-lang ocpp -double` | 103 | 20 622 | 0 |
-| | `-lang cpp -vec` | 102 | 36 311 | 0 |
-| `examples` (272) | `-lang ocpp` | 259 | 206 346 | 0 |
-| | `-lang cpp` | 259 | 225 484 | 0 |
+**Prises**
 
-Les programmes non vérifiés sont refusés par le compilateur pour une raison étrangère
-aux horloges : `osc_enable.dsp` sous `-vec`, sept exemples sans `process`, six qui
-importent une bibliothèque absente.
+- Convention « début » pour les sous-instants.
+- Égalité structurelle des horloges.
+- La sortie d'une région est un signal de l'horloge parente.
+- Maintien en entrée d'`upsampling` ; un bourrage de zéros s'écrit dans la région.
+- L'écriture de table n'est pas une opération à horloge.
+- Les projections d'un groupe partagent une horloge.
+- L'horloge est calculée à côté de la variabilité, avec un test de concordance.
+- Une branche d'horloge sur chaque opération à horloge, y compris hors région.
+- Spécifier d'abord ; implémenter après la bascule de `master-dev`.
 
-Le test a été rendu faux une fois : avec la règle du retard ramenée à l'horloge bloc,
-il signale 25 divergences sur `karplus.dsp`. La règle de `Mem` n'est en revanche pas
-exercée à ce stade de la compilation (la forme normale a déjà réécrit ces nœuds).
+**En attente**
 
-L'étape 0 ne distingue pas l'horloge différée d'un générateur de table de l'horloge
-échantillon : les deux se projettent sur `kSamp`.
+- Une ou deux sortes dans la signature (8.1).
+- La graine des variables récursives (8.3).
 
-### 10.4 Étape 1 : le front-end des régions d'horloge, fait
+**Ouvertes**
 
-Commits `dc1d83c1d` (sources) et `314a6dc05` (lexer et parser régénérés).
-
-- `ondemand(P)`, `upsampling(P)`, `downsampling(P)` : trois mots réservés, trois
-  boîtes unaires, de type $(1+n) \to m$ pour $P : n \to m$.
-- Évaluation, simplification, préparation des motifs, impression (`-e`, messages
-  d'erreur), parcours et transformation de boîtes, complexité.
-- Un seul schéma graphique pour les trois (`clockRegionSchema`), là où `FIR20` en avait
-  trois copies : un cadre portant le mot-clé et l'entrée de cadence (`run` ou `rate`).
-- La propagation refuse une région en la nommant : les signaux n'ont pas encore
-  d'horloge.
-- Test de régression `tests/compile-tests/clock-regions.py`, ajouté à `check-scripts`.
-
-Le parser suivi par git était généré par bison 2.3. Il l'est ici par bison 3.8.2, seul
-disponible : le fichier diffère de bout en bout, d'où le commit séparé, à régénérer
-avec l'outil d'origine avant une intégration. Le code émis est identique à celui de
-`certification-4` sur la suite d'impulsions (309 compilations) et sur les exemples (272).
-
-Non fait à cette étape : l'API publique des boîtes (`box_signal_api.cpp`) et les motifs
-de filtrage portant sur une région.
-
-## 11. Questions ouvertes
-
-- **[Q1]** Sens canonique de la loi de distribution (section 5) : remontée de `Sample`
-  vers les consommateurs, comme proposé ?
-- **[Q2]** Sorties qui *collectent* (`vectorize`/`serialize`, trames FFT,
-  `interleave`) : le générateur de table en est déjà une. À prévoir dans les types dès
-  maintenant ?
-- **[Q3]** `switch(C0..Ck)` : horloges de cadences complémentaires. Faut-il une notion
-  d'horloges *exclusives* pour partager l'état ou le code ?
-- **[Q4]** Cadence quelconque ($r$ tantôt nul, tantôt supérieur à 1) : à conserver, ou
-  à restreindre à la sélection et à la subdivision pures ?
-- **[Q5]** Cadence définie sur $\mathbf{B}$ (ondemand piloté par un slider) : la région
-  doit-elle sortir de la boucle d'échantillons ?
+- **[Q1]** Un maintien à valeur initiale explicite, qui serait à `On` ce que `Prefix`
+  est à `Mem`, pour ne pas forcer $0$ dans l'intervalle d'une sortie de région.
+- **[Q2]** Les sorties qui collectent plusieurs valeurs (`vectorize`, trames FFT,
+  `interleave`). Le remplissage de table en est une.
+- **[Q3]** `switch(C0..Ck)` : des sélections de cadences complémentaires.
+- **[Q4]** Une cadence tantôt nulle, tantôt supérieure à 1. Le calcul la définit (ni
+  sélection ni subdivision) ; faut-il l'accepter dans le langage ?
+- **[Q5]** La valeur d'une horloge dans le domaine des intervalles, et la conversion de
+  l'horizon entre temps local et temps parent.
+- **[Q6]** La vectorisation des régions de cadence constante.
