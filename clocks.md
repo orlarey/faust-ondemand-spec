@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v27
+subtitle: Spécification, brouillon v28
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -185,7 +185,7 @@ Les horloges de profondeur 1 sont les **repères de base** :
 
 | Repère de base | Sa cadence | Son temps |
 | :--- | :--- | :--- |
-| table i, de taille nᵢ | nᵢ à l'étape i, 0 ailleurs | nᵢ instants |
+| table i, de taille nᵢ | nᵢ pendant l'étape de la table, 0 ailleurs | nᵢ instants |
 | échantillons **S** | 0 pendant les étapes des tables, puis la longueur de chaque bloc | infini |
 
 Le premier échantillon n'a donc pas lieu pendant une étape d'initialisation : il a lieu pendant l'étape du premier bloc.
@@ -431,25 +431,25 @@ Pour une table en lecture seule, `ROTbl` (*read-only table*) :
 
 ```math
 ⟦\mathsf{rdtable}(n, G)⟧_k(i) = (\mathsf{RDTbl}(\mathsf{ROTbl}(n, \mathsf{Gen}(T, g)),\ i))
-\quad\text{où}\quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ
+\quad\text{où}\quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ(n, G)
 ```
 
-τ est la cadence de la table : n pendant l'étape de la table, 0 ailleurs. Seul l'indice de lecture vient du contexte, et la lecture est une opération sans mémoire. Si la table est lue dans un `ondemand`, la table et son contenu sont donc calculés en dehors de la région.
+τ(n, G) est la cadence de la table : n pendant l'étape de la table, 0 ailleurs. Elle est identifiée par la taille et le circuit du générateur, connus avant de traduire celui-ci. Seul l'indice de lecture vient du contexte, et la lecture est une opération sans mémoire. Si la table est lue dans un `ondemand`, la table et son contenu sont donc calculés en dehors de la région.
 
 Pour une table en lecture-écriture, `WRTbl`. Les trois entrées viennent du contexte, et la table reçoit l'horloge courante, comme `@` et `'` la reçoivent :
 
 ```math
 ⟦\mathsf{rwtable}(n, G)⟧_k(w, x, i) = (\mathsf{RDTbl}(\mathsf{WRTbl}(k, n, \mathsf{Gen}(T, g), w, x),\ i))
-\quad\text{où}\quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ
+\quad\text{où}\quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ(n, G)
 ```
 
 Deux `rwtable` propagées sous deux horloges courantes différentes donnent deux arbres, donc deux tables, même si leurs trois entrées sont identiques. Elles ont le même générateur `Gen(T, g)`, traduit une seule fois. **[D]**
 
 La règle de la région et celle de la table sont les deux seules qui changent l'horloge courante. La région la prolonge ; le générateur d'une table repart du repère du haut.
 
-L'étape d'une table est attribuée quand la propagation de son générateur s'achève. Les tables que ce générateur lit ont alors déjà la leur : la numérotation suit les dépendances, et elle est déterministe.
+L'étape d'une table n'entre pas dans l'identité de son horloge : c'est un attribut, attribué quand la propagation de son générateur s'achève. Les tables que ce générateur lit ont alors déjà la leur : la numérotation suit les dépendances, et elle est déterministe.
 
-Une même table en lecture seule, écrite à plusieurs endroits du programme, est propagée une seule fois : même taille et même générateur donnent la même horloge et le même arbre.
+Une même table en lecture seule, écrite à plusieurs endroits du programme, est propagée une seule fois : même taille et même circuit générateur donnent la même horloge, donc le même arbre.
 
 ## Ce que la propagation garantit
 
@@ -508,7 +508,18 @@ Dans un `upsampling`, un retard plus court que le facteur est invisible de l'ext
 
 Le remplissage d'une table de taille n est le calcul d'un signal sur un repère de base qui a n instants, tous pendant une même étape du repère du haut. Le générateur y avance d'un pas par instant : « les n premiers instants d'un signal » se lit littéralement.
 
-Chaque table a son propre repère. Deux raisons l'imposent : chaque générateur repart de son instant 0 et s'arrête à sa propre taille, et une table qui en lit une autre a besoin qu'elle soit complète.
+Chaque table a son propre repère. Deux raisons l'imposent : chaque générateur repart de son instant 0 et s'arrête à sa propre taille, et une table qui en lit une autre a besoin qu'elle soit complète. La taille ne suffit donc pas à identifier le repère : deux tables de même taille, dont l'une lit l'autre, occupent deux étapes.
+
+**[D] L'horloge d'une table est identifiée par le circuit de la table** : sa taille n et son générateur G, pris comme circuit, avec les signaux qu'il capture. On note τ(n, G) sa cadence, et T = ⊤ · τ(n, G) son horloge. Tout cela est connu avant la propagation du générateur : l'horloge existe avant les signaux qu'elle sert à traduire.
+
+L'**étape** de la table n'entre pas dans cette identité. C'est un attribut de l'horloge, calculé après coup : une étape postérieure à celles des tables que le générateur lit. τ(n, G) est le signal du repère du haut qui vaut n pendant cette étape, et 0 ailleurs.
+
+Deux conséquences :
+
+- la même table écrite à deux endroits a le même circuit, donc la même horloge, donc la même traduction : elle est partagée par construction ;
+- deux tables différentes ont deux horloges, même si elles ont la même taille. Une sous-expression commune à leurs générateurs, une rampe par exemple, est traduite deux fois, une fois sous chaque horloge. Le compilateur actuel fait de même : une classe par générateur.
+
+Donner une seule horloge à des tables indépendantes de même taille serait une optimisation ; elle n'est pas introduite.
 
 Le générateur d'une table est un programme comme un autre. Il peut contenir des régions :
 
@@ -537,11 +548,11 @@ Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde 
 | `WRTbl(k, n, gen, w, x)` | la table en lecture-écriture : une mémoire sur l'horloge k, qui part de ce tableau et reçoit les écritures |
 | `RDTbl(table, index)` | une opération sans mémoire : indexer la table |
 
-`Gen` est à la table ce que `Up` est à la région : `Up(p · r, y)` rend la dernière valeur, `Gen(⊤ · τ, g)` les rend toutes.
+`Gen` est à la table ce que `Up` est à la région : `Up(p · r, y)` rend la dernière valeur, `Gen(⊤ · τ(n, G), g)` les rend toutes.
 
 Le compilateur a déjà les constructeurs `sigGen(g)`, `sigRDTbl(table, index)` et `sigWRTbl(size, gen, wi, ws)`. Ce dernier sert aujourd'hui aux deux tables, celle en lecture seule étant sa forme sans écriture. Le calcul leur donne deux noms, `ROTbl` et `WRTbl`, parce que ce sont deux opérations : la première est un signal du repère du haut, la seconde une mémoire sur l'horloge courante. `sigGen` et `sigWRTbl` gagnent une horloge.
 
-La taille de la table est la cadence de son repère : elle figure donc deux fois, dans τ et dans l'argument n. Cette redondance vient du constructeur existant.
+La taille de la table est la cadence de son repère : elle figure donc deux fois, dans τ(n, G) et dans l'argument n. Cette redondance vient du constructeur existant.
 
 ## L'initialisation comme un tout
 
@@ -550,7 +561,7 @@ L'initialisation est un seul objet : l'ensemble des tables du programme, ordonn�
 - **Les tables sont recensées sur tout le programme**, qu'elles apparaissent dans `process` ou dans le générateur d'une autre table. Elles sont toutes au même niveau : aucune n'est à l'intérieur d'une autre.
 - **Elles sont ordonnées une fois**, selon leurs dépendances. Chaque table reçoit une étape du repère du haut, postérieure à celles des tables qu'elle lit : elle la reçoit quand la propagation de son générateur s'achève. Une table ne lit donc que le passé, et l'exécution vient après toutes.
 - **Elles sont accessibles les unes aux autres par leur parent commun.** Une table remplie est un signal du repère du haut : elle est visible de tous les repères, y compris de celui d'une table postérieure et de toute région de l'exécution.
-- **Une table est identifiée par ce qu'elle est**, sa taille et son générateur. Deux lectures de la même table désignent le même objet, rempli une seule fois.
+- **Une table est identifiée par ce qu'elle est**, sa taille et son générateur pris comme circuit. Deux lectures de la même table désignent le même objet, rempli une seule fois.
 
 Deux conditions accompagnent la sérialisation :
 
@@ -581,7 +592,7 @@ Une table en lecture-écriture a un état : son contenu change au fil des écrit
 
 `WRTbl(k, n, gen, w, x)` réunit donc deux choses, d'horloges différentes :
 
-- son **contenu initial**, `gen` = `Gen(T, g)` : un signal du repère du haut, le même arbre pour toutes les tables de ce générateur ;
+- son **contenu initial**, `gen` = `Gen(T, g)` : un signal du repère du haut, le même arbre pour toutes les tables écrites de cette taille et de ce générateur ;
 - sa **mémoire**, qui part de ce contenu et reçoit les écritures : elle vit sur l'horloge k que porte l'opération.
 
 La table écrite est à son contenu initial ce que `Prefix(k, x0, x)` est à sa valeur de départ x0.
@@ -893,7 +904,7 @@ virtual T Delay(const Clock<T>& clk, const T& x, const T& d) const = 0;
 virtual T Up(const Clock<T>& clk, const T& y) const = 0;
 ```
 
-Le repère du haut et la dérivation ne sont pas des opérations que chaque algèbre interprète : ce sont les constructeurs de la structure, les mêmes pour toutes. Dans l'arbre de signaux, ils sont des nœuds :
+Le repère du haut et la dérivation ne sont pas des opérations que chaque algèbre interprète : ce sont les constructeurs de la structure, les mêmes pour toutes. Dans l'arbre de signaux, ils sont des nœuds. La cadence d'une table, τ(n, G), y est un nœud à part, identifié par la taille et le circuit du générateur :
 
 ```adt
 Clock ::= Top                       (* le repère du haut : Top = Derive(Top, 1) *)
@@ -999,6 +1010,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Les horloges naissent à la propagation, qui transporte une horloge courante. Deux règles la changent : la région la prolonge, la table repart du repère du haut.
 - Une table est une construction qui reçoit des circuits, sa taille et son générateur, et non une primitive qui reçoit des signaux. `rdtable(n, G)` rend un circuit à une entrée, `rwtable(n, G)` un circuit à trois entrées. La forme où la taille et le générateur arrivent par des fils disparaît.
 - L'horloge du générateur dérive toujours du repère du haut ; une région qui lit ou écrit une table ne porte que sur la lecture et l'écriture.
+- L'horloge d'une table est identifiée par le circuit de la table, sa taille et son générateur. Son étape n'entre pas dans cette identité : c'est un attribut, calculé après la propagation selon les dépendances.
 - La sortie d'une table est `Gen(T, g)`, qui collecte toutes les valeurs du générateur ; la taille de la table est la cadence de son repère T.
 - Deux opérations pour les deux tables : `ROTbl(n, gen)`, la table en lecture seule, un signal du repère du haut, sans horloge ; `WRTbl(k, n, gen, w, x)`, la table en lecture-écriture, une opération à horloge qui porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur.
 - Une opération porte une horloge quand cette horloge ne se déduit pas de ses arguments.
