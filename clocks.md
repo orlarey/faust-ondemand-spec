@@ -42,7 +42,7 @@ language: fr
   - **Les règles** — les règles d'inférence.
   - **Règles de valeur** — ce que la sortie fait aux intervalles.
 - **Lois** — les égalités que le compilateur peut appliquer.
-- **Exemples** — le calcul déroulé à la main sur sept programmes.
+- **Exemples** — le calcul déroulé à la main sur huit programmes.
 - **Parenté avec les langages synchrones** — ce qui est repris, ce qui diffère.
 - **La place dans l'approche algébrique** — l'horloge dans la signature.
   - **L'horloge dans la signature** — un opérande, pas une donnée.
@@ -786,6 +786,27 @@ Le calcul l'exprime sans rien ajouter. Sous l'horloge courante p, dont t est le 
 
 Cette écriture est une définition, non une façon de compiler : elle demande k·n retards et k·m sorties, là où la primitive utiliserait des tampons de trame. C'est la raison d'en faire une primitive.
 
+## Aiguillage
+
+`switch(C₀, …, Cₖ)` est une primitive à venir. Elle reçoit k+1 circuits de mêmes arités et construit un circuit qui a une entrée de plus, le sélecteur s. À chaque instant, seul le circuit numéro s s'exécute ; chaque circuit garde son état, figé quand il n'est pas choisi.
+
+Le calcul l'exprime sans rien ajouter. Sous l'horloge courante p :
+
+```
+⟦switch(C₀ … Cₖ)⟧ₚ(s, x…) = (o…)
+
+  cᵢ    = p · (s = i)
+  (yᵢ)  = ⟦Cᵢ⟧_cᵢ(x…)
+  o     = Up(cᵢ, yᵢ)   pour i = s
+```
+
+Chaque circuit est dans une sélection, et les cadences sont complémentaires : une seule vaut 1 à chaque instant. Dans le langage, c'est `par(i, k+1, ondemand(Cᵢ)(s == i))` suivi d'un sélecteur.
+
+La primitive apporterait deux choses :
+
+- **le code** : un seul `switch` au lieu de k+1 tests suivis d'une sélection ;
+- **l'intervalle** : chaque `Up(cᵢ, yᵢ)` a 0 dans son intervalle, donc la sortie de la traduction aussi. Or le circuit choisi vient toujours de s'exécuter. La primitive, qui sait les cadences complémentaires, rendrait l'union des intervalles des yᵢ, sans le 0.
+
 # Parenté avec les langages synchrones
 
 Le calcul décrit une exécution synchrone et causale, et il reprend des notions établies.
@@ -931,17 +952,15 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 ## En attente
 
 - La primitive `interleave(n, m, C)`, à introduire à terme pour l'efficacité. Le calcul la définit déjà par traduction (voir les exemples) ; il n'a besoin d'aucun concept nouveau.
+- La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples).
 
 ## Ouvertes
 
 Q1
-:   `switch(C0..Ck)` : des sélections de cadences complémentaires.
-
-Q2
 :   Une cadence tantôt nulle, tantôt supérieure à 1. Le calcul la définit (ni sélection ni subdivision) ; faut-il l'accepter dans le langage ?
 
-Q3
+Q2
 :   La valeur d'une horloge dans le domaine des intervalles, et la conversion de l'horizon entre le temps d'un repère et celui de son parent.
 
-Q4
+Q3
 :   La vectorisation des régions de cadence constante.
