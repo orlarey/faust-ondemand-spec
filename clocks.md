@@ -36,6 +36,7 @@ language: fr
   - **L'initialisation comme un tout** — l'ensemble ordonné des tables, sous un parent commun.
   - **La table est une région** — une construction qui reçoit des circuits.
   - **La table écrite** — l'état d'une table en lecture-écriture appartient à son contexte.
+  - **La sémantique des tables** — une équation pour chacune des quatre opérations.
   - **Un slider dans un générateur** — sa valeur par défaut.
 - **Les règles d'horloge** — dire quelle horloge a le résultat d'une opération.
   - **Trois sortes d'opérations** — sans mémoire, à horloge, sortie.
@@ -199,7 +200,7 @@ Sous chaque repère de base, on construit des régions par les mêmes dérivatio
 ## Un signal et son horloge
 
 ::: definition [Signal]
-Un **signal** d'horloge c est une fonction qui donne une valeur réelle à chaque instant de c.
+Un **signal** d'horloge c est une fonction qui donne une valeur réelle à chaque instant de c. Le signal d'une table fait exception : sa valeur est un tableau de n valeurs (voir « La sémantique des tables »).
 :::
 
 - Une constante est un signal du repère du haut, qui prend la même valeur à chaque étape.
@@ -615,6 +616,44 @@ La table écrite est à son contenu initial ce que `Prefix(k, x0, x)` est à sa 
 La table en lecture seule n'a pas de mémoire qui évolue. Elle est une opération différente, `ROTbl(n, gen)`, qui ne porte pas d'horloge : ses deux arguments sont des signaux du repère du haut, elle en est donc un aussi.
 
 Réécrire la même valeur au même index est sans effet, mais cela ne suffit pas à rendre l'écriture indépendante de l'horloge. Dans un `ondemand`, la table n'est écrite qu'aux instants de la demande, avec les valeurs vues à ces instants : si la valeur écrite est un slider, la table garde celle de la dernière demande, non la valeur courante. Au niveau principal, en revanche, voir un slider depuis les échantillons ne perd rien, et l'on peut exécuter l'écriture une fois par bloc : c'est une optimisation, celle que fait aujourd'hui la variabilité.
+
+## La sémantique des tables
+
+La valeur d'un signal de table est un tableau de n valeurs. Les quatre opérations ont alors leur équation, comme `Delay` et `Up` ont la leur.
+
+`Gen` suit la même définition que `Up`. `Up` garde la dernière des valeurs calculées ; `Gen` les garde toutes :
+
+```math
+⟦\mathsf{Gen}(T, g)⟧_⊤(t)[j] = ⟦g⟧_T(j) \quad\text{si } j < \mathit{fait}(t), \qquad 0 \quad\text{sinon}
+```
+
+Avant l'étape de la table, fait(t) = 0 et le tableau est nul. À partir de cette étape, fait(t) = n et le tableau est complet.
+
+`ROTbl` ne change pas la valeur ; elle nomme l'objet table :
+
+```math
+⟦\mathsf{ROTbl}(n, \mathit{gen})⟧_⊤(t) = ⟦\mathit{gen}⟧_⊤(t)
+```
+
+`RDTbl` est une opération sans mémoire, appliquée instant par instant :
+
+```math
+⟦\mathsf{RDTbl}(\mathit{tbl}, i)⟧_c(m) = ⟦\mathit{tbl}⟧_c(m)\,[\,⟦i⟧_c(m)\,]
+```
+
+`WRTbl` part du contenu initial I et applique une écriture par instant de son horloge k :
+
+```math
+⟦\mathsf{WRTbl}(k, n, \mathit{gen}, w, x)⟧_k(m) = W(m)
+```
+
+```math
+W(0) = I\,[\,⟦w⟧_k(0) ↦ ⟦x⟧_k(0)\,], \qquad W(m) = W(m-1)\,[\,⟦w⟧_k(m) ↦ ⟦x⟧_k(m)\,] \quad\text{pour } m ≥ 1
+```
+
+Le contenu initial I est le tableau `gen` vu depuis k à son premier instant ; l'étape de la table est alors passée, et le tableau est complet. La lecture d'un instant voit l'écriture du même instant : c'est le comportement du compilateur actuel, qui écrit dans la table puis la lit dans la même itération.
+
+Les mémoires n'ont donc pas toutes le même contenu de départ : 0 pour `Mem`, x0 pour `Prefix`, le tableau `gen` pour `WRTbl`.
 
 ## Un slider dans un générateur
 
