@@ -192,13 +192,13 @@ C'est la fonction h⁺ de la spec v5, étendue sans changement aux cadences sup�
 
 ## La cadence est un signal
 
-Une cadence est une fonction de ℕ dans ℕ : c'est exactement un signal entier de l'horloge parente. Dans un programme, la cadence de c · r est un signal comme un autre, entier, positif ou nul, visible depuis c. Les deux notions dépendent donc l'une de l'autre : un signal a une horloge, et une horloge est une suite de signaux.
+Une cadence est une fonction de ℕ dans ℕ : c'est exactement un signal entier de l'horloge parente. Dans un programme, la cadence de p · r est un signal comme un autre, entier, positif ou nul, visible depuis le parent p. Les deux notions dépendent donc l'une de l'autre : un signal a une horloge, et une horloge est une suite de signaux.
 
 Plusieurs choses en découlent.
 
 - **La cadence est calculée par le programme.** Elle peut être une constante (une région périodique), dépendre d'un contrôle, d'une entrée audio, ou de la sortie d'une autre région.
-- **Elle a elle-même une horloge**, ancêtre de c, et se lit depuis c par la règle de vue. Une cadence constante est un signal du repère du haut.
-- **Elle a une sémantique.** Le nombre d'instants faits se calcule avec le crochet : fait(t) est la somme des valeurs de la cadence, vue de c, aux instants 0 à t.
+- **Elle a elle-même une horloge**, ancêtre de p, et se lit depuis p par la règle de vue. Une cadence constante est un signal du repère du haut.
+- **Elle a une sémantique.** Le nombre d'instants faits se calcule avec le crochet : fait(t) est la somme des valeurs de la cadence, vue de p, aux instants 0 à t de p.
 - **Elle peut dépendre de la région qu'elle commande**, à travers un retard : une région peut décider de sa prochaine demande. Elle ne peut pas en dépendre dans le même instant, ce serait un cycle sans retard.
 - **Les cadences données par l'hôte sont des signaux aussi.** La longueur de chaque bloc et la taille de chaque table sont des signaux du repère du haut.
 - **Elle est transformée comme tout signal.** Une horloge contient ses cadences ; une transformation qui réécrit les signaux réécrit donc aussi les horloges.
