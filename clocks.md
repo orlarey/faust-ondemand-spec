@@ -453,7 +453,22 @@ Une même table en lecture seule, écrite à plusieurs endroits du programme, es
 
 ## Ce que la propagation garantit
 
-Dans un programme propagé sous l'horloge courante k, tout signal lu au niveau de k a pour horloge k ou l'un de ses ancêtres ; les signaux internes d'une région, d'horloge k · r, n'en sortent que par `Up`. Une table lue dans ce programme est un signal du repère du haut, ancêtre de tout. Les règles d'horloge données plus loin ne servent donc pas à trouver les horloges : elles vérifient ce que la propagation a construit, et ce que chaque transformation doit préserver.
+L'invariant est le suivant : sous l'horloge courante k, tout signal lu au niveau de k a pour horloge k ou l'un de ses ancêtres. Les signaux internes d'une région, d'horloge k · r, n'en sortent que par `Up`. Une table lue dans le programme est un signal du repère du haut, ancêtre de tout.
+
+Les deux règles qui changent l'horloge courante ne le traitent pas de la même façon :
+
+- **la règle de la région le préserve.** Elle prolonge k en k · r, et les ancêtres de k restent des ancêtres de k · r : un signal capturé par le corps d'une région est toujours visible ;
+- **la règle de la table peut le rompre.** Elle repart du repère du haut : un signal du contexte qui était sur **S**, ou sur le repère d'une autre table, n'est pas un ancêtre de T.
+
+**[D] Un générateur ne capture que des signaux du repère du haut** : des constantes, des sliders, qui y valent leur valeur par défaut, et des tables. C'est la seule erreur d'horloge que l'utilisateur puisse commettre :
+
+```faust
+process(x) = rdtable(16, x, index);    // erreur : le générateur capture l'entrée x
+```
+
+Les règles d'horloge la détectent sans vérification à part, puisque le signal capturé est sur une horloge incompatible avec T. Le message dit que le générateur d'une table lit un signal de l'exécution.
+
+Une fois la propagation réussie, les règles d'horloge données plus loin ne peuvent plus échouer. Elles ne servent pas à trouver les horloges : elles vérifient ce que la propagation a construit, et ce que chaque transformation doit préserver.
 
 ## Un retard dans chaque région
 
@@ -584,7 +599,7 @@ La table est donc traitée comme un `ondemand` de sa partie générative (voir l
 | entrées du corps | celles du circuit | aucune |
 | sortie | `Up` : la dernière valeur | `Gen` : toutes les valeurs |
 
-Un générateur qui lirait un signal de l'exécution, une entrée audio par exemple, n'a pas besoin d'une vérification à part : ce signal est sur une horloge incompatible avec celle de la table, et les règles d'horloge le refusent.
+Un générateur qui lirait un signal de l'exécution, une entrée audio par exemple, n'a pas besoin d'une vérification à part : ce signal est sur une horloge incompatible avec celle de la table, et les règles d'horloge le refusent. C'est une erreur de l'utilisateur, la seule que ces règles puissent signaler (voir « Ce que la propagation garantit »).
 
 ## La table écrite
 
@@ -693,8 +708,8 @@ On note ⊢ s : c pour « s est un signal d'horloge c ».
 p · r \text{ bien formée}
 ```
 
-- Toutes les règles demandent des arguments visibles depuis l'horloge où ils sont lus. Elles ne peuvent pas échouer dans un programme traduit : dans le contexte lexical c, tout signal a pour horloge un ancêtre de c, et les ancêtres de c forment une chaîne.
-- C'est un invariant que chaque transformation doit préserver. Sa vérification est une obligation de certification ; une violation est un défaut du compilateur. **[D]**
+- Toutes les règles demandent des arguments visibles depuis l'horloge où ils sont lus. À la propagation, elles ne peuvent échouer que d'une façon : un générateur de table qui capture un signal hors du repère du haut. C'est une erreur de l'utilisateur.
+- Dans un programme dont la propagation a réussi, elles ne peuvent plus échouer : dans le contexte lexical c, tout signal a pour horloge c ou l'un de ses ancêtres, et ces ancêtres forment une chaîne. C'est un invariant que chaque transformation doit préserver. Sa vérification est une obligation de certification ; une violation est alors un défaut du compilateur. **[D]**
 - (op) est la règle de temporalité de `ATTRIBUTES.md` : le join des arguments consultés.
 - (proj) : les projections d'un groupe partagent une horloge, comme elles partagent une variabilité (« le groupe est couplé »). **[D]**
 - (clk) : r entier positif est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle porte en plus sur la nature de la cadence, lue dans son intervalle : toujours ≤ 1 pour `ondemand` et `downsampling`, toujours ≥ 1 pour `upsampling`.
@@ -1021,7 +1036,8 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - Deux horloges sont égales quand elles ont le même parent et la même cadence : c'est une identité d'arbres.
-- Les règles d'horloge vérifient un invariant que la propagation établit et que chaque transformation doit préserver ; sa vérification est une obligation de certification.
+- Un générateur de table ne capture que des signaux du repère du haut. C'est la seule erreur d'horloge possible pour l'utilisateur ; les règles d'horloge la détectent à la propagation.
+- Une fois la propagation réussie, les règles d'horloge vérifient un invariant que chaque transformation doit préserver ; sa vérification est une obligation de certification, et une violation est un défaut du compilateur.
 - Les projections d'un groupe partagent une horloge, la plus profonde de celles de ses définitions. Un groupe récursif ne porte pas d'horloge : c'est le `Mem` qui ferme sa boucle qui la porte.
 - Spécifier d'abord ; implémenter après la bascule de `master-dev`.
 
