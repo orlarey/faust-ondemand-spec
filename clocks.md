@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v17
+subtitle: Spécification, brouillon v18
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -399,7 +399,15 @@ process = rdtable(1024, gen, index);
    └─ régions de process
 ```
 
-**La sortie d'une table.** Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes : `Collect(T, g)` est le signal du repère du haut qui vaut, à partir de l'étape de la table, le tableau des n valeurs de g. Lire la table est ensuite une opération sans mémoire : indexer ce tableau. **[P]**
+**La sortie d'une table.** Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes. Le compilateur a déjà les constructeurs pour cela, et ils se lisent directement dans le calcul :
+
+| Constructeur existant | Lecture dans le calcul |
+| :--- | :--- |
+| `sigGen(g)` | la frontière du repère de la table : g est le signal du générateur, sur ce repère |
+| `sigWRTbl(size, sigGen(g))` | la sortie qui collecte : le signal du repère du haut qui vaut, à partir de l'étape de la table, le tableau des `size` valeurs de g |
+| `sigRDTbl(table, index)` | une opération sans mémoire : indexer ce tableau |
+
+La taille de la table est la cadence de son repère : `sigWRTbl` a donc déjà les deux opérandes d'une sortie, la cadence et le signal. Ce qui manque aux constructeurs actuels est l'horloge : le repère de la table, que portent les opérations à horloge du générateur.
 
 **Les dépendances entre tables.** Le générateur d'une table peut lire une autre table. Les tables forment un graphe de dépendances, que l'on sérialise : chaque table reçoit une étape, postérieure à celles des tables qu'elle lit. Une table ne lit donc que le passé, et l'exécution vient après toutes. **[D]**
 
@@ -420,7 +428,7 @@ Deux conditions accompagnent ce choix :
 | :--- | :--- | :--- |
 | **sans mémoire** | arithmétique, `select2`, lecture et écriture de table | la plus longue de celles des arguments |
 | **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, fonction étrangère sans argument | l'horloge p · r qu'elle porte |
-| **sortie** | `Up`, `Collect` | le parent p de l'horloge p · r qu'elle porte |
+| **sortie** | `Up` ; pour une table, `sigWRTbl` et `sigGen` | le parent p de l'horloge p · r qu'elle porte |
 
 Une opération est **à horloge** quand son résultat dépend du nombre d'instants écoulés. Un retard de 1 sur une horloge n'est pas un retard de 1 sur une autre :
 
@@ -609,7 +617,7 @@ Clock ::= Top                       (* le repère du haut : Top = Derive(Top, 1)
         | Derive(Clock, rate)       (* l'horloge de ce parent et de cette cadence *)
 
 Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence est dans l'horloge *)
-        | Collect(Clock, y)
+        | Gen(Clock, y)             (* le générateur d'une table, sur le repère de la table *)
         | Mem(Clock, x)             (* de même pour les opérations à horloge *)
         | Delay(Clock, x, d)
         | Prefix(Clock, x0, x)
@@ -680,6 +688,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Pendant les étapes des tables, un slider vaut sa valeur par défaut.
 - La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
 - Les tables sont sérialisées selon leurs dépendances, par une règle déterministe.
+- La sortie d'une table est celle des constructeurs existants, `sigWRTbl` et `sigGen` ; la taille de la table est la cadence de son repère.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
 - Égalité structurelle des horloges.
@@ -691,7 +700,6 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 ## En attente
 
-- `Collect` comme sortie d'une table.
 - Une ou deux sortes dans la signature.
 - La graine des variables récursives.
 
@@ -701,7 +709,7 @@ Q1
 :   Une sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem`, pour ne pas forcer 0 dans l'intervalle d'une sortie de région.
 
 Q2
-:   `Collect` hors des tables (`vectorize`, trames FFT, `interleave`) : il faudrait une cadence constante, ou bornée.
+:   Une sortie qui collecte, comme celle d'une table, hors de l'initialisation (`vectorize`, trames FFT, `interleave`) : il faudrait une cadence constante, ou bornée.
 
 Q3
 :   `switch(C0..Ck)` : des sélections de cadences complémentaires.
