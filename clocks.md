@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v23
+subtitle: Spécification, brouillon v24
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -405,23 +405,25 @@ L'écriture habituelle reste valable : appliquer des arguments à un circuit, c'
 
 **[D] Le générateur est traduit sous l'horloge de la table, qui dérive toujours du repère du haut**, quelle que soit l'horloge courante. La propagation le traduit directement sous cette horloge : il n'y a jamais d'horloge à changer après coup.
 
-Pour une table en lecture seule :
+Le générateur traduit devient `Gen(T, g)`, la sortie qui collecte ses n valeurs : un signal du repère du haut. Deux opérations distinctes en font une table.
+
+Pour une table en lecture seule, `ROTbl` (*read-only table*) :
 
 ```math
-⟦\mathsf{rdtable}(n, G)⟧_k(i) = (\mathsf{RDTbl}(t,\ i))
-\quad\text{où}\quad t = \mathsf{WRTbl}(n, \mathsf{Gen}(g)), \quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ
+⟦\mathsf{rdtable}(n, G)⟧_k(i) = (\mathsf{RDTbl}(\mathsf{ROTbl}(⊤, n, \mathsf{Gen}(T, g)),\ i))
+\quad\text{où}\quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ
 ```
 
 τ est la cadence de la table : n pendant l'étape de la table, 0 ailleurs. Seul l'indice de lecture vient du contexte, et la lecture est une opération sans mémoire. Si la table est lue dans un `ondemand`, la table et son contenu sont donc calculés en dehors de la région.
 
-Pour une table en lecture-écriture, le générateur donne le **contenu initial**, traduit de la même façon. Les trois entrées viennent du contexte, et la table écrite reçoit l'horloge courante, comme `@` et `'` la reçoivent :
+Pour une table en lecture-écriture, `WRTbl`. Les trois entrées viennent du contexte, et la table reçoit l'horloge courante, comme `@` et `'` la reçoivent :
 
 ```math
-⟦\mathsf{rwtable}(n, G)⟧_k(w, x, i) = (\mathsf{RDTbl}(\mathsf{WRTbl}(k, t, w, x),\ i))
-\quad\text{où}\quad t = \mathsf{WRTbl}(n, \mathsf{Gen}(g)), \quad (g) = ⟦G⟧_T()
+⟦\mathsf{rwtable}(n, G)⟧_k(w, x, i) = (\mathsf{RDTbl}(\mathsf{WRTbl}(k, n, \mathsf{Gen}(T, g), w, x),\ i))
+\quad\text{où}\quad (g) = ⟦G⟧_T(), \quad T = ⊤ · τ
 ```
 
-Deux `rwtable` propagées sous deux horloges courantes différentes donnent deux arbres, donc deux tables, même si leurs trois entrées sont identiques. Elles ne partagent que leur contenu initial. **[D]**
+Deux `rwtable` propagées sous deux horloges courantes différentes donnent deux arbres, donc deux tables, même si leurs trois entrées sont identiques. Elles ont le même générateur `Gen(T, g)`, traduit une seule fois. **[D]**
 
 La règle de la région et celle de la table sont les deux seules qui changent l'horloge courante. La région la prolonge ; le générateur d'une table repart du repère du haut.
 
@@ -506,15 +508,20 @@ process = rdtable(1024, gen, index);
 
 ## La sortie d'une table
 
-Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes. Le compilateur a déjà les constructeurs pour cela, et ils se lisent directement dans le calcul :
+Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes. Quatre opérations se partagent les rôles :
 
-| Constructeur existant | Lecture dans le calcul |
+| Opération | Lecture dans le calcul |
 | :--- | :--- |
-| `sigGen(g)` | la frontière du repère de la table : g est le signal du générateur, sur ce repère |
-| `sigWRTbl(size, sigGen(g))` | la sortie qui collecte : le signal du repère du haut qui vaut, à partir de l'étape de la table, le tableau des `size` valeurs de g |
-| `sigRDTbl(table, index)` | une opération sans mémoire : indexer ce tableau |
+| `Gen(T, g)` | la sortie qui collecte : g est le signal du générateur, sur le repère T de la table ; `Gen(T, g)` est le signal du repère du haut qui vaut, à partir de l'étape de la table, le tableau des n valeurs de g |
+| `ROTbl(⊤, n, gen)` | la table en lecture seule : ce tableau, qui ne change plus |
+| `WRTbl(k, n, gen, w, x)` | la table en lecture-écriture : une mémoire sur l'horloge k, qui part de ce tableau et reçoit les écritures |
+| `RDTbl(table, index)` | une opération sans mémoire : indexer la table |
 
-La taille de la table est la cadence de son repère : `sigWRTbl` a donc déjà les deux opérandes d'une sortie, la cadence et le signal. Ce qui manque aux constructeurs actuels est l'horloge : le repère de la table, que portent les opérations à horloge du générateur.
+`Gen` est à la table ce que `Up` est à la région : `Up(p · r, y)` rend la dernière valeur, `Gen(⊤ · τ, g)` les rend toutes.
+
+Le compilateur a déjà les constructeurs `sigGen(g)`, `sigRDTbl(table, index)` et `sigWRTbl(size, gen, wi, ws)`. Ce dernier sert aujourd'hui aux deux tables, celle en lecture seule étant sa forme sans écriture. Le calcul leur donne deux noms, `ROTbl` et `WRTbl`, parce que ce sont deux opérations : la première est un signal du repère du haut, la seconde une mémoire sur l'horloge courante. `sigGen` et `sigWRTbl` gagnent une horloge.
+
+La taille de la table est la cadence de son repère : elle figure donc deux fois, dans τ et dans l'argument n. Cette redondance vient du constructeur existant.
 
 ## L'initialisation comme un tout
 
@@ -544,7 +551,7 @@ La table est donc traitée comme un `ondemand` de sa partie générative (voir l
 | horloge parente | l'horloge courante | le repère du haut, toujours |
 | cadence | h, un signal d'entrée | n pendant l'étape de la table, 0 ailleurs |
 | entrées du corps | celles du circuit | aucune |
-| sortie | `Up` : la dernière valeur | `sigWRTbl` : toutes les valeurs |
+| sortie | `Up` : la dernière valeur | `Gen` : toutes les valeurs |
 
 Un générateur qui lirait un signal de l'exécution, une entrée audio par exemple, n'a pas besoin d'une vérification à part : ce signal est sur une horloge incompatible avec celle de la table, et les règles d'horloge le refusent.
 
@@ -552,12 +559,14 @@ Un générateur qui lirait un signal de l'exécution, une entrée audio par exem
 
 Une table en lecture-écriture a un état : son contenu change au fil des écritures. Cet état appartient au contexte où elle est écrite. Deux `rwtable` identiques placées dans deux `ondemand` sont deux tables, comme deux retards identiques y sont deux retards.
 
-Elle réunit donc deux choses, que la propagation sépare :
+`WRTbl(k, n, gen, w, x)` réunit donc deux choses, d'horloges différentes :
 
-- son **contenu initial**, produit par le générateur : une table en lecture seule, sous le repère du haut, calculée une fois et partagée ;
-- la **table écrite**, qui part de ce contenu et reçoit les écritures : une opération à horloge, qui porte l'horloge courante.
+- son **contenu initial**, `gen` = `Gen(T, g)` : un signal du repère du haut, le même arbre pour toutes les tables de ce générateur ;
+- sa **mémoire**, qui part de ce contenu et reçoit les écritures : elle vit sur l'horloge k que porte l'opération.
 
-La table écrite est à son contenu initial ce qu'un retard est à sa valeur de départ.
+La table écrite est à son contenu initial ce que `Prefix(k, x0, x)` est à sa valeur de départ x0.
+
+La table en lecture seule n'a pas de mémoire qui évolue. Elle est une opération différente, `ROTbl(⊤, n, gen)`, et un signal du repère du haut : c'est ce que dit l'horloge ⊤ qu'elle porte.
 
 Réécrire la même valeur au même index est sans effet, mais cela ne suffit pas à rendre l'écriture indépendante de l'horloge. Dans un `ondemand`, la table n'est écrite qu'aux instants de la demande, avec les valeurs vues à ces instants : si la valeur écrite est un slider, la table garde celle de la dernière demande, non la valeur courante. Au niveau principal, en revanche, voir un slider depuis les échantillons ne perd rien, et l'on peut exécuter l'écriture une fois par bloc : c'est une optimisation, celle que fait aujourd'hui la variabilité.
 
@@ -571,9 +580,9 @@ Un slider est visible depuis le repère d'une table, et il y vaut sa valeur par 
 
 | Sorte | Exemples | Horloge du résultat |
 | :--- | :--- | :--- |
-| **sans mémoire** | arithmétique, `select2`, lecture de table | la plus longue de celles des arguments |
-| **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, table écrite, fonction étrangère sans argument | l'horloge p · r qu'elle porte |
-| **sortie** | `Up` ; pour une table, `sigWRTbl` et `sigGen` | le parent p de l'horloge p · r qu'elle porte |
+| **sans mémoire** | arithmétique, `select2`, `RDTbl`, `ROTbl` | la plus longue de celles des arguments |
+| **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, `WRTbl`, fonction étrangère sans argument | l'horloge p · r qu'elle porte |
+| **sortie** | `Up` ; pour une table, `Gen` | le parent p de l'horloge p · r qu'elle porte |
 
 Une opération est **à horloge** quand son résultat dépend du nombre d'instants écoulés. Un retard de 1 sur une horloge n'est pas un retard de 1 sur une autre :
 
@@ -591,7 +600,7 @@ La cadence ne joue pas le même rôle dans les deux cas. Dans une sortie, elle e
 
 Quand une horloge est nommée, par exemple **S** = ⊤ · count ou c = p · r, on écrit `Delay(S, x, d)` ou `Mem(c, x)` ; la cadence est alors la dernière de l'horloge.
 
-La table écrite en est une : son contenu dépend des instants où l'on écrit. **[D]**
+La table écrite `WRTbl` en est une : son contenu dépend des instants où l'on écrit. La table en lecture seule `ROTbl` n'en est pas une : ses arguments sont des signaux du repère du haut, elle aussi. **[D]**
 
 ## Les règles
 
@@ -779,8 +788,9 @@ Clock ::= Top                       (* le repère du haut : Top = Derive(Top, 1)
         | Derive(Clock, rate)       (* l'horloge de ce parent et de cette cadence *)
 
 Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence est dans l'horloge *)
-        | Gen(Clock, y)             (* le générateur d'une table, sur le repère de la table *)
-        | WRTbl(Clock, t, wi, ws)   (* la table écrite, à partir du contenu initial t *)
+        | Gen(Clock, y)             (* la sortie d'une table : toutes les valeurs du générateur y *)
+        | ROTbl(Top, n, gen)        (* la table en lecture seule *)
+        | WRTbl(Clock, n, gen, wi, ws)   (* la table en lecture-écriture, sur l'horloge où elle est écrite *)
         | Mem(Clock, x)             (* de même pour les opérations à horloge *)
         | Delay(Clock, x, d)
         | Prefix(Clock, x0, x)
@@ -866,11 +876,12 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Les horloges naissent à la propagation, qui transporte une horloge courante. Deux règles la changent : la région la prolonge, la table repart du repère du haut.
 - Une table est une construction qui reçoit des circuits, sa taille et son générateur, et non une primitive qui reçoit des signaux. `rdtable(n, G)` rend un circuit à une entrée, `rwtable(n, G)` un circuit à trois entrées. La forme où la taille et le générateur arrivent par des fils disparaît.
 - L'horloge du générateur dérive toujours du repère du haut ; une région qui lit ou écrit une table ne porte que sur la lecture et l'écriture.
-- La sortie d'une table est celle des constructeurs existants, `sigWRTbl` et `sigGen` ; la taille de la table est la cadence de son repère.
+- La sortie d'une table est `Gen(T, g)`, qui collecte toutes les valeurs du générateur ; la taille de la table est la cadence de son repère T.
+- Deux opérations pour les deux tables : `ROTbl(⊤, n, gen)`, la table en lecture seule, un signal du repère du haut ; `WRTbl(k, n, gen, w, x)`, la table en lecture-écriture, une opération à horloge.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
 - Égalité structurelle des horloges.
-- La table écrite d'une `rwtable` est une opération à horloge, qui porte l'horloge courante ; son contenu initial est une table en lecture seule, partagée. Cela remplace la décision antérieure, selon laquelle l'écriture de table suivait l'horloge de ses arguments.
+- La table écrite d'une `rwtable` porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur. Cela remplace la décision antérieure, selon laquelle l'écriture de table suivait l'horloge de ses arguments.
 - Les projections d'un groupe partagent une horloge, la plus profonde de celles de ses définitions. Un groupe récursif ne porte pas d'horloge : c'est le `Mem` qui ferme sa boucle qui la porte.
 - L'horloge est calculée à côté de la variabilité.
 - Une branche d'horloge sur chaque opération à horloge, y compris hors région.
