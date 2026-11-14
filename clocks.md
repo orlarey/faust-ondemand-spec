@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v25
+subtitle: Spécification, brouillon v26
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -677,7 +677,7 @@ Pour les attributs de valeur (nature, booléanité, intervalle), `Up(p · r, y)`
 
 La sortie porte l'union avec la valeur initiale, exactement comme le retard dans `FIXPOINT-SPEC.md` (Y@n = Y ⊔ α(0)).
 
-Conséquence à garder en tête : une valeur sortie d'un `ondemand` a 0 dans son intervalle, ce qui pèse sur la certification d'un retard ou d'un index qui en dépend.
+Conséquence à garder en tête : une valeur sortie d'un `ondemand` a 0 dans son intervalle, ce qui pèse sur la certification d'un retard ou d'un index qui en dépend. Ce 0 est accepté : la sortie n'a pas de valeur initiale explicite. **[D]**
 
 Pour les attributs de temporalité, la sortie consulte y et r : leurs deux temporalités entrent dans celle du résultat.
 
@@ -892,6 +892,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Une opération porte une horloge quand cette horloge ne se déduit pas de ses arguments.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
+- Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - Égalité structurelle des horloges.
 - La table écrite d'une `rwtable` porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur. Cela remplace la décision antérieure, selon laquelle l'écriture de table suivait l'horloge de ses arguments.
 - Les projections d'un groupe partagent une horloge, la plus profonde de celles de ses définitions. Un groupe récursif ne porte pas d'horloge : c'est le `Mem` qui ferme sa boucle qui la porte.
@@ -906,19 +907,16 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 ## Ouvertes
 
 Q1
-:   Une sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem`, pour ne pas forcer 0 dans l'intervalle d'une sortie de région.
-
-Q2
 :   Une sortie qui collecte, comme celle d'une table, hors de l'initialisation (`vectorize`, trames FFT, `interleave`) : il faudrait une cadence constante, ou bornée.
 
-Q3
+Q2
 :   `switch(C0..Ck)` : des sélections de cadences complémentaires.
 
-Q4
+Q3
 :   Une cadence tantôt nulle, tantôt supérieure à 1. Le calcul la définit (ni sélection ni subdivision) ; faut-il l'accepter dans le langage ?
 
-Q5
+Q4
 :   La valeur d'une horloge dans le domaine des intervalles, et la conversion de l'horizon entre le temps d'un repère et celui de son parent.
 
-Q6
+Q5
 :   La vectorisation des régions de cadence constante.
