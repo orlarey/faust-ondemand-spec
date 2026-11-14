@@ -41,6 +41,7 @@ language: fr
   - **Trois sortes d'opérations** — sans mémoire, à horloge, sortie.
   - **Les règles** — les règles d'inférence.
   - **Règles de valeur** — ce que la sortie fait aux intervalles.
+  - **Le domaine d'horizon** — une forme affine par repère, deux conversions.
 - **Lois** — les égalités que le compilateur peut appliquer.
 - **Exemples** — le calcul déroulé à la main sur huit programmes.
 - **Parenté avec les langages synchrones** — ce qui est repris, ce qui diffère.
@@ -699,6 +700,39 @@ Pour les attributs de temporalité, la sortie consulte y et r : leurs deux tempo
 
 L'horloge d'une opération à horloge n'entre dans aucun attribut de valeur.
 
+## Le domaine d'horizon
+
+Dans le domaine d'horizon (`HORIZON.md`), l'intervalle d'un signal est une forme affine du temps : x(t) ∈ [a₀ + a₁·t, b₀ + b₁·t] pour 0 ≤ t ≤ T. Avec les horloges, ce temps n'est plus unique.
+
+**[D] Chaque forme est écrite dans le temps de l'horloge de son signal.** À l'intérieur d'un repère rien ne change : `Mem`, `Delay` et les compteurs se résolvent comme aujourd'hui. Seules les deux opérations qui traversent une frontière convertissent une forme, la vue et la sortie. C'est la même répartition que dans la sémantique.
+
+Les règles qui suivent sont déduites des définitions de la remontée et de la sortie. Elles sont proposées : elles n'ont pas été confrontées au code de `HorizonAlgebra`, et sont à valider lors de l'implémentation.
+
+**La valeur d'une horloge.** Dans ce domaine, une horloge p · r est son parent et l'intervalle [k, K] de sa cadence. Une cadence qui dépend du temps est d'abord effondrée vers son intervalle-horizon : sa somme serait quadratique. De cet intervalle viennent deux encadrements, où t est un instant de p et n un instant de p · r :
+
+| Grandeur | Minorant | Majorant |
+| :--- | :--- | :--- |
+| fait(t) − 1, le dernier instant calculé | k·(t+1) − 1 | K·(t+1) − 1 |
+| π(n), la remontée | (n − K + 1) / K | n / k ; l'horizon de p si k = 0 |
+
+**L'horizon d'une horloge.** L'horizon déclaré compte des échantillons : c'est celui du repère **S**. Si celui de p est Tₚ, celui de p · r est K·(Tₚ + 1) − 1. Il vaut donc Tₚ dans un `ondemand`, et environ N·Tₚ dans un `upsampling` de cadence N. Le repère d'une table de taille n a exactement n instants : un compteur écrit dans un générateur est borné par n.
+
+**Les deux conversions.** La vue remplace t par l'encadrement de π(n) ; la sortie remplace n par celui de fait(t) − 1. Pour des formes croissantes (a₁ ≥ 0, b₁ ≥ 0) :
+
+| | Borne basse | Borne haute |
+| :--- | :--- | :--- |
+| **vue** depuis p · r d'un signal de p | a₀ + a₁·(n − K + 1)/K | b₀ + b₁·n/k ; b₀ + b₁·Tₚ si k = 0 |
+| **sortie** `Up(p · r, y)` | a₀ + a₁·(k·(t+1) − 1) ; min(a₀, 0) si k = 0 | b₀ + b₁·(K·(t+1) − 1) |
+
+La vue divise donc les pentes par la cadence, la sortie les multiplie. Quand la cadence peut être nulle, la borne haute d'une vue s'effondre vers sa valeur à l'horizon du parent, et la sortie est unie à 0. Pour une forme décroissante, les rôles de k et K s'échangent.
+
+Deux vérifications, avec un compteur y(n) = n + 1 écrit dans la région :
+
+- dans un `ondemand` (k = 0, K = 1), la sortie est dans [0, 1 + t] : il n'y a pas plus de t + 1 demandes ;
+- dans un `upsampling` de cadence 4, la sortie vaut 4 + 4·t : la pente est multipliée par 4.
+
+**Les dates.** Un diagnostic daté à l'instant n de p · r l'est, dans le temps de p, à π(n) : au plus tôt à (n − K + 1) / K. On remonte ainsi jusqu'aux échantillons.
+
 # Lois
 
 On note c = p · r.
@@ -957,6 +991,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
 - Pas de `vectorize`, ni de sortie qui collecte en dehors des tables.
+- Dans le domaine d'horizon, chaque forme affine est écrite dans le temps de l'horloge de son signal ; seules la vue et la sortie convertissent.
 - Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - Égalité structurelle des horloges.
@@ -969,12 +1004,10 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 ## En attente
 
 - La primitive `interleave(n, m, C)`, à introduire à terme pour l'efficacité. Le calcul la définit déjà par traduction (voir les exemples) ; il n'a besoin d'aucun concept nouveau.
+- Les règles du domaine d'horizon (encadrements, horizon d'une horloge, conversions de la vue et de la sortie) sont proposées ; elles sont à valider contre `HorizonAlgebra` lors de l'implémentation.
 - La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples).
 
 ## Ouvertes
 
 Q1
-:   La valeur d'une horloge dans le domaine des intervalles, et la conversion de l'horizon entre le temps d'un repère et celui de son parent.
-
-Q2
 :   La vectorisation des régions de cadence constante.
