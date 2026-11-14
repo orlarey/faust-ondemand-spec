@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v15
+subtitle: Spécification, brouillon v16
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -10,10 +10,12 @@ language: fr
 - **Objet et statut** — dire ce que le document spécifie et où en est le travail.
 - **Les repères temporels** — construire le temps sur ℕ, sans parler de signaux.
   - **Le temps d'une horloge** — une succession d'instants numérotés.
-  - **Un repère et son parent** — la cadence et la remontée.
+  - **Parent et cadence** — ce qu'on peut demander à une horloge.
+  - **Le repère du haut** — l'horloge qui est son propre parent, de cadence 1.
+  - **La remontée** — passer du temps d'une horloge à celui de son parent.
   - **Sélection et subdivision** — les deux cas remarquables.
-  - **La hiérarchie** — une horloge est la suite des cadences qui y mènent.
-  - **Le repère du haut** — les étapes du programme : les tables, puis les blocs.
+  - **Les ancêtres** — la chaîne d'une horloge, et le treillis.
+  - **Les étapes du programme** — les tables, puis les blocs.
 - **Les signaux** — poser les valeurs sur les repères.
   - **Un signal et son horloge** — une valeur par instant.
   - **Voir un signal depuis un repère descendant** — composer avec la remontée.
@@ -65,22 +67,55 @@ Le temps d'une horloge est ℕ. Un **instant** est un entier : 0 est le premier 
 
 Chaque horloge a son propre temps. L'instant 5 d'une horloge et l'instant 5 d'une autre n'ont a priori aucun rapport : pour les relier, il faut passer par la hiérarchie.
 
-## Un repère et son parent
+## Parent et cadence
 
-Une horloge se construit à partir d'une autre, son **parent**, en disant combien de ses instants ont lieu pendant chaque instant du parent.
+Une horloge n'est pas définie par ce qu'elle contient, mais par ce qu'on peut en demander. On peut lui demander deux choses.
 
-::: definition [Cadence]
-Une **cadence** est une fonction r : ℕ → ℕ. r(t) est le nombre d'instants de la nouvelle horloge qui ont lieu pendant l'instant t du parent.
+::: definition [Horloge]
+Toute **horloge** c a :
+
+- un **parent**, parent(c), qui est une horloge ;
+- une **cadence**, cadence(c), qui est une fonction de ℕ dans ℕ sur le temps de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c).
+
+Deux horloges sont **égales** quand elles ont le même parent et la même cadence.
 :::
 
-Le nombre d'instants de la nouvelle horloge qui ont eu lieu à la fin de l'instant t du parent est
+On note p · r l'horloge dont le parent est p et la cadence r :
+
+```math
+\mathit{parent}(p · r) = p \qquad \mathit{cadence}(p · r) = r
+```
+
+Toute horloge s'écrit ainsi : c = parent(c) · cadence(c).
+
+## Le repère du haut
+
+::: definition [Repère du haut]
+Le **repère du haut**, noté ⊤, est l'horloge qui est son propre parent et dont la cadence vaut 1 à chaque instant :
+
+```math
+\mathit{parent}(⊤) = ⊤ \qquad \mathit{cadence}(⊤) = 1 \qquad\text{c'est-à-dire}\qquad ⊤ = ⊤ · 1
+```
+
+Toute horloge atteint ⊤ en un nombre fini de passages au parent.
+:::
+
+C'est la seule horloge qui n'est pas construite à partir d'une autre : elle amorce toutes les autres. Son temps est donné, et c'est l'hôte qui le fait avancer.
+
+Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur k s'écrit ⊤ · r₁ · r₂ · … · rₖ : elle est déterminée par la suite de ses cadences.
+
+## La remontée
+
+La cadence dit combien d'instants ont lieu pendant chaque instant du parent. On en tire la fonction qui fait passer du temps d'une horloge au temps de son parent.
+
+Soit c une horloge, p son parent et r sa cadence. Le nombre d'instants de c qui ont eu lieu à la fin de l'instant t de p est
 
 ```math
 \mathit{fait}(t) = r(0) + r(1) + … + r(t)
 ```
 
 ::: definition [Remontée]
-La **remontée** π : ℕ → ℕ associe à chaque instant n de la nouvelle horloge l'instant du parent pendant lequel il a lieu : π(n) est le plus petit t tel que fait(t) > n.
+La **remontée** π de c associe à chaque instant n de c l'instant de son parent pendant lequel il a lieu : π(n) est le plus petit t tel que fait(t) > n.
 :::
 
 La remontée est croissante. La cadence et la remontée disent la même chose : r(t) est le nombre d'instants n tels que π(n) = t.
@@ -95,39 +130,35 @@ instants de l'horloge n :   0           1  2  3     4
 remontée          π(n)  :   0           2  2  2     3
 ```
 
-Pendant l'instant 1 du parent il ne se passe rien. Pendant l'instant 2 ont lieu trois instants de la nouvelle horloge.
+Pendant l'instant 1 du parent il ne se passe rien. Pendant l'instant 2 ont lieu trois instants de l'horloge.
 
-Si la cadence est nulle à partir d'un certain instant, la nouvelle horloge n'a qu'un nombre fini d'instants : son temps est un début de ℕ.
+Pour le repère du haut, la cadence vaut 1 partout : fait(t) = t + 1, et la remontée est l'identité. La définition générale s'applique donc aussi à ⊤, sans cas particulier.
+
+Si la cadence est nulle à partir d'un certain instant, l'horloge n'a qu'un nombre fini d'instants : son temps est un début de ℕ.
 
 ## Sélection et subdivision
 
 Deux cas sont remarquables.
 
 Sélection
-:   r ne vaut jamais plus de 1. Il n'y a jamais deux instants pendant le même instant du parent : la remontée est strictement croissante.
+:   La cadence ne vaut jamais plus de 1. Il n'y a jamais deux instants pendant le même instant du parent : la remontée est strictement croissante.
 
 Subdivision
-:   r vaut toujours au moins 1. Il se passe quelque chose pendant chaque instant du parent : la remontée atteint tous les instants du parent.
+:   La cadence vaut toujours au moins 1. Il se passe quelque chose pendant chaque instant du parent : la remontée atteint tous les instants du parent.
 
-Dans l'exemple ci-dessus, la cadence n'est ni l'une ni l'autre.
+Dans l'exemple ci-dessus, la cadence n'est ni l'une ni l'autre. Celle du repère du haut est les deux à la fois.
 
-## La hiérarchie
+Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et une remontée identité. Elle n'est pas égale à p pour autant, sauf si p est le repère du haut : son parent est p, alors que celui de p est parent(p).
 
-Une horloge dérivée a un parent, qui peut lui-même en avoir un. En remontant on finit par atteindre l'horloge sans parent, le **repère du haut**, noté ⊤.
+## Les ancêtres
 
-::: definition [Horloge]
-Une **horloge** est la suite des cadences qui y mènent depuis le repère du haut : c = (r₁, r₂, …, rₖ). Le repère du haut est la suite vide. Le **parent** de (r₁, …, rₖ) est (r₁, …, rₖ₋₁), et rₖ est une cadence sur le temps de ce parent.
-:::
-
-On note c · r l'horloge obtenue en ajoutant la cadence r à c.
-
-Les **ancêtres** d'une horloge sont ses préfixes, elle-même comprise. On note a ≤ c quand a est un ancêtre de c. Les ancêtres d'une horloge sont rangés par longueur : ils forment une chaîne, du repère du haut jusqu'à elle.
+Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi de suite jusqu'à ⊤. On note a ≤ c quand a est un ancêtre de c. Les ancêtres d'une horloge forment une chaîne, du repère du haut jusqu'à elle.
 
 Pour remonter d'une horloge c à l'un de ses ancêtres a, on compose les remontées successives. On note π(c → a) cette remontée composée ; π(c → c) est l'identité.
 
-Deux horloges quelconques ont toujours un plus proche ancêtre commun, leur plus long préfixe commun. Si aucune n'est l'ancêtre de l'autre, elles sont **incompatibles** : leurs signaux ne se rencontrent qu'après être sortis jusqu'à cet ancêtre commun. Avec un élément « incompatible » ajouté en bas, les horloges forment un treillis dont le repère du haut est le sommet.
+Deux horloges quelconques ont toujours un plus proche ancêtre commun, puisque ⊤ est l'ancêtre de toutes. Si aucune n'est l'ancêtre de l'autre, elles sont **incompatibles** : leurs signaux ne se rencontrent qu'après être sortis jusqu'à cet ancêtre commun. Avec un élément « incompatible » ajouté en bas, les horloges forment un treillis dont le repère du haut est le sommet.
 
-## Le repère du haut
+## Les étapes du programme
 
 Le temps du repère du haut est la suite des **étapes** du programme : d'abord une étape par table à remplir, puis une étape par bloc. **[D]**
 
@@ -138,9 +169,9 @@ Avec trois tables :
             table 1    table 2    table 3    bloc 0   bloc 1   bloc 2
 ```
 
-C'est une succession d'instants ordinaire, infinie. Sous le repère du haut se trouvent les **repères de base**, chacun étant la subdivision d'une ou plusieurs étapes :
+Les horloges de profondeur 1 sont les **repères de base** :
 
-| Repère de base | Cadence depuis le repère du haut | Son temps |
+| Repère de base | Sa cadence | Son temps |
 | :--- | :--- | :--- |
 | table i, de taille nᵢ | nᵢ à l'étape i, 0 ailleurs | nᵢ instants |
 | échantillons **S** | 0 pendant les étapes des tables, puis la longueur de chaque bloc | infini |
@@ -196,7 +227,7 @@ C'est la fonction h⁺ de la spec v5, étendue sans changement aux cadences sup�
 
 ## La cadence est un signal
 
-Une cadence est une fonction de ℕ dans ℕ : c'est exactement un signal entier de l'horloge parente. Dans un programme, la cadence de p · r est un signal comme un autre, entier, positif ou nul, visible depuis le parent p. Les deux notions dépendent donc l'une de l'autre : un signal a une horloge, et une horloge est une suite de signaux.
+Une cadence est une fonction de ℕ dans ℕ : c'est exactement un signal entier de l'horloge parente. Dans un programme, la cadence de p · r est un signal comme un autre, entier, positif ou nul, visible depuis le parent p. Les deux notions dépendent donc l'une de l'autre : un signal a une horloge, et une horloge a pour cadence un signal.
 
 Plusieurs choses en découlent.
 
@@ -207,7 +238,7 @@ Plusieurs choses en découlent.
 - **Les cadences données par l'hôte sont des signaux aussi.** La longueur de chaque bloc et la taille de chaque table sont des signaux du repère du haut.
 - **Elle est transformée comme tout signal.** Une horloge contient ses cadences ; une transformation qui réécrit les signaux réécrit donc aussi les horloges.
 
-**[D] Égalité.** Deux horloges sont égales quand elles sont la même suite de signaux de cadence, comparés par identité d'arbre après mise en forme normale.
+**[D] Égalité.** Deux horloges sont égales quand elles ont le même parent et le même signal de cadence, comparé par identité d'arbre après mise en forme normale.
 
 # La sémantique
 
@@ -385,8 +416,8 @@ process = ramp, ondemand(ramp);   // deux rampes distinctes
 
 **[D] La cadence est visible.** Une opération à horloge s'écrit avec son horloge sous la forme parent · cadence : `Delay(p · r, x, d)`, `Mem(p · r, x)`, comme la sortie `Up(p · r, y)`. Deux conséquences :
 
-- une opération à horloge a toujours au moins une cadence : elle ne peut pas être écrite sur le repère du haut, sans qu'il faille le demander ;
-- au niveau principal, un retard s'écrit `Delay(⊤ · count, x, d)`, la cadence étant la longueur des blocs.
+- au niveau principal, un retard s'écrit `Delay(⊤ · count, x, d)`, la cadence étant la longueur des blocs ;
+- le repère du haut s'écrivant lui-même ⊤ · 1, la règle « aucune opération à horloge sur le repère du haut » ne découle pas de l'écriture : c'est une condition des règles d'horloge.
 
 La cadence ne joue pas le même rôle dans les deux cas. Dans une sortie, elle entre dans le calcul de la valeur. Dans une opération à horloge, elle dit seulement **quand** l'opération s'exécute : sa valeur, dans son propre repère, ne dépend que du nombre d'instants écoulés.
 
@@ -415,7 +446,7 @@ On note ⊢ s : c pour « s est un signal d'horloge c ».
 ```
 
 ```inference (mem)
-⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ p · r; c2 ≤ p · r
+⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ p · r; c2 ≤ p · r; p · r ≠ ⊤
 ---
 ⊢ Delay(p · r, s1, s2) : p · r
 ```
@@ -482,7 +513,7 @@ Composition
 :   pour deux cadences booléennes, (p · h₁) · h₀ a les mêmes instants que p · (h₁ × `Up(p · h₁, h₀)`). C'est h₀ ⊗ h₁ de la spec v5.
 
 Cas dégénérés
-:   avec r = 1 partout, c a le même temps que p et la remontée est l'identité ; avec r = 0 partout, c n'a aucun instant et toute sortie vaut 0.
+:   avec r = 1 partout, c a le même temps que p et la remontée est l'identité : `Up(p · 1, y)` = y, et une opération d'horloge p · 1 vaut la même opération d'horloge p. Avec r = 0 partout, c n'a aucun instant et toute sortie vaut 0.
 
 La fusion `ondemand(P)(h) : ondemand(Q)(h)` = `ondemand(P:Q)(h)` découle de la loi de sélection et de l'égalité des horloges. Elle est fausse pour un `upsampling`.
 
@@ -554,8 +585,8 @@ L'arbre de signaux est l'algèbre initiale de la signature (`FAUSTALGEBRA.md`). 
 **[P]** L'horloge est un opérande, pas une donnée : elle contient des signaux, ses cadences, que chaque interprétation interprète et chaque transformation transforme.
 
 ```adt
-Clock ::= Top                       (* le repère du haut *)
-        | Derive(Clock, rate)       (* une cadence de plus *)
+Clock ::= Top                       (* le repère du haut : Top = Derive(Top, 1) *)
+        | Derive(Clock, rate)       (* l'horloge de ce parent et de cette cadence *)
 
 Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence est dans l'horloge *)
         | Collect(Clock, y)
@@ -623,7 +654,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 ## Prises
 
-- Chaque horloge a pour temps ℕ ; une horloge est la suite des cadences qui y mènent.
+- Chaque horloge a pour temps ℕ. Une horloge a un parent et une cadence ; le repère du haut est son propre parent, de cadence 1.
 - Le repère du haut a pour instants les étapes du programme : une par table, puis une par bloc.
 - Les constantes sont des signaux du repère du haut. Aucune opération à horloge n'y est écrite.
 - La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
