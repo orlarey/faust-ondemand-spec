@@ -377,6 +377,8 @@ Un groupe récursif est donc créé sous une horloge courante connue : celle du 
 | `downsampling(P)(N)` | 1 un instant sur N, 0 sinon | sélection | SR / N |
 | `upsampling(P)(N)` | N | subdivision | N · SR |
 
+**[D] N est un signal constant** : sa valeur ne change pas pendant l'exécution. La cadence d'un `upsampling` est donc constante, celle d'un `downsampling` périodique. C'est ce qui donne un sens à la fréquence vue à l'intérieur, N · SR ou SR / N, et ce qui borne par N le coût d'un `upsampling`. Seule la demande h d'un `ondemand` varie.
+
 Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand` dont la demande vaut 1 quand un compteur modulo N, écrit sur l'horloge courante, vaut 0. La fréquence d'échantillonnage appartient à la primitive, pas à l'horloge : la propagation la transporte à côté de l'horloge courante, comme un second paramètre que les règles ci-dessous n'écrivent pas.
 
 **[D] Une région du langage est une sélection ou une subdivision.** Le calcul définit aussi les cadences mixtes, tantôt nulles, tantôt supérieures à 1, et il en a besoin : celle d'une table et celle des échantillons le sont. Mais le langage n'en offre pas à l'utilisateur, pour trois raisons :
@@ -762,7 +764,8 @@ W : c ⊢ e1 : c1; …; W : c ⊢ e_n : c_n; c1 ≤ c; …; c_n ≤ c; c ∈ \{ 
 - (mem) est écrite pour `Delay` ; elle vaut pour toute opération à horloge, `WRTbl` comprise. (up) vaut aussi pour `Gen`, dont le résultat est sur le repère du haut, parent de l'horloge de la table.
 - (proj) et (hyp) : e₁ … eₙ sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la plus profonde de leurs horloges. Ce n'est pas une itération : c est l'horloge que porte le `Mem` qui ferme la boucle. Les autres règles transmettent l'hypothèse sans la lire, et elle n'y est pas écrite.
 - (proj) : les projections d'un groupe partagent une horloge, comme elles partagent une variabilité (« le groupe est couplé »). **[D]**
-- (clk) : r entier, positif ou nul, est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle demande en plus que la cadence soit une sélection ou une subdivision, ce qui se lit dans son intervalle : toujours ≤ 1 pour `ondemand` et `downsampling`, toujours ≥ 1 pour `upsampling`.
+- (clk) : r entier, positif ou nul, est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle demande en plus que la cadence soit une sélection ou une subdivision, ce qui se lit dans son intervalle : h dans [0, 1] pour `ondemand`, N constant et ≥ 1 pour `upsampling` et `downsampling`.
+- **[D] Si cette preuve échoue, la certification échoue.** Il n'y a pas de repli pour une cadence, à la différence d'un index de table ou du sélecteur de `switch`, qui sont saturés : une cadence corrigée en silence changerait le nombre d'exécutions d'une région.
 - Toutes les règles demandent des arguments visibles depuis l'horloge où ils sont lus. À la propagation, elles ne peuvent échouer que d'une façon : un générateur de table qui capture un signal hors du repère du haut. C'est une erreur de l'utilisateur.
 - Dans un programme dont la propagation a réussi, elles ne peuvent plus échouer : sous l'horloge courante k, tout signal lu au niveau de k a pour horloge k ou l'un de ses ancêtres, et ces ancêtres forment une chaîne. C'est un invariant que chaque transformation doit préserver. Sa vérification est une obligation de certification ; une violation est alors un défaut du compilateur. **[D]**
 
@@ -1058,7 +1061,7 @@ Une région d'horloge est un nœud du graphe de son parent. Chaque horloge a son
 Dans le code scalaire, une région est emboîtée dans la boucle de son parent : un `if (h)` pour un `ondemand`, un `for (j < N)` pour un `upsampling`. Le calcul permet une autre forme, celle du mode `-vec` : une boucle séparée par horloge.
 
 - **Une horloge se prête à une boucle par bloc.** Tous les signaux d'une horloge c partagent le même temps : ils peuvent être calculés par une boucle sur les instants de c écoulés pendant le bloc. La vue lit le tampon du parent à l'indice π(n) ; la sortie y écrit la valeur d'indice fait(t) − 1.
-- **Une cadence constante rend ces indices explicites.** Pour une cadence N, π(n) = n ÷ N et fait(t) − 1 = N·t + N − 1. La boucle de la région est régulière, sur un tampon N fois plus long, et vectorisable. Pour une cadence variable, il faudrait deux tampons d'indices remplis par la boucle du parent, ou garder la forme emboîtée.
+- **Une cadence constante rend ces indices explicites.** C'est le cas de tout `upsampling`. Pour une cadence N, π(n) = n ÷ N et fait(t) − 1 = N·t + N − 1. La boucle de la région est régulière, sur un tampon N fois plus long, et vectorisable. Pour une cadence variable, il faudrait deux tampons d'indices remplis par la boucle du parent, ou garder la forme emboîtée.
 - **La séparation n'est pas toujours permise.** Si une récursion traverse la frontière, la région et son parent dépendent l'un de l'autre à chaque instant : ils restent dans la même boucle. C'est la règle actuelle du mode `-vec`, où une boucle est une composante fortement connexe du graphe des dépendances ; elle s'étend telle quelle.
 
 C'est ce que le calcul permet. La réalisation relève de la génération de code, et vient après le mode scalaire.
@@ -1096,6 +1099,8 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Pas de sortie qui collecte en dehors des tables, donc pas de primitive `vectorize`.
 - Un index de table et le sélecteur de `switch` sont traités de même : une obligation de certification, et une saturation quand la preuve échoue.
 - Dans le domaine d'horizon, chaque forme affine est écrite dans le temps de l'horloge de son signal ; seules la vue et la sortie convertissent.
+- Le facteur N d'un `upsampling` ou d'un `downsampling` est un signal constant ; seule la demande d'un `ondemand` varie.
+- Si la preuve qu'une cadence est une sélection ou une subdivision échoue, la certification échoue : il n'y a pas de repli pour une cadence.
 - Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - Deux horloges sont égales quand elles ont le même parent et la même cadence, comparée par identité d'arbre après mise en forme normale.
