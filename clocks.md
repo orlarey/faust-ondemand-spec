@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v30
+subtitle: Spécification, brouillon v31
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -289,7 +289,9 @@ Retard
 ⟦\mathsf{Delay}(p · r, x, d)⟧_{p · r}(n) = ⟦x⟧_{p · r}(n - ⟦d⟧_{p · r}(n)) \qquad \text{pour } n ≥ 0
 ```
 
-`Mem(c, x)` est le retard d'un instant : `Mem(c, x)` = `Delay(c, x, 1)`. `Prefix(c, x0, x)` est le même retard, dont la première valeur est donnée : il vaut x0 à l'instant 0 de c, puis x à l'instant précédent.
+Le retard d'un instant se note `Mem(c, x)` : c'est `Delay(c, x, 1)`.
+
+Le retard `Prefix(c, x0, x)` est le même, mais sa première valeur est donnée : il vaut x0 à l'instant 0 de c, puis x à l'instant précédent.
 
 Vue
 :   Un signal d'horloge a, regardé depuis un repère descendant c, se lit en remontant. La remontée se calcule avec les cadences qui séparent a de c.
@@ -514,10 +516,10 @@ Dans le compilateur actuel, `rdtable` est une primitive à trois signaux : quand
 
 **[D] Une table est une construction qui reçoit des circuits.** Elle n'est pas une primitive qui reçoit des signaux : sa taille et son générateur sont ses paramètres, comme le corps d'un `ondemand`, et elle rend un circuit.
 
-| Construction | Paramètres | Circuit construit |
-| :--- | :--- | :--- |
-| `rdtable(n, G)` | la taille n, le générateur G (aucune entrée, une sortie) | une entrée, l'indice de lecture ; une sortie |
-| `rwtable(n, G)` | les mêmes | trois entrées, l'indice d'écriture, la valeur écrite, l'indice de lecture ; une sortie |
+Les deux constructions ont les mêmes paramètres : la taille n, et le générateur G, un circuit sans entrée et à une sortie.
+
+- `rdtable(n, G)` rend un circuit à une entrée, l'indice de lecture, et une sortie.
+- `rwtable(n, G)` rend un circuit à trois entrées, l'indice d'écriture, la valeur écrite et l'indice de lecture, et une sortie.
 
 L'écriture habituelle reste valable : appliquer des arguments à un circuit, c'est les brancher sur ses entrées. `rdtable(n, G, i)` se lit i : `rdtable(n, G)`, et `rwtable(n, G, w, x, i)` se lit (w, x, i) : `rwtable(n, G)`. Ce qui disparaît est la forme où la taille et le générateur arrivent eux-mêmes par des fils.
 
@@ -535,12 +537,17 @@ La table est ainsi traitée comme un `ondemand` de sa partie générative :
 
 Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes. Quatre opérations se partagent les rôles :
 
-| Opération | Lecture dans le calcul |
-| :--- | :--- |
-| `Gen(T, g)` | la sortie qui collecte : g est le signal du générateur, sur le repère T de la table ; `Gen(T, g)` est le signal du repère du haut qui vaut, à partir de l'étape de la table, le tableau des n valeurs de g |
-| `ROTbl(n, gen)` | la table en lecture seule : ce tableau, qui ne change plus |
-| `WRTbl(k, n, gen, w, x)` | la table en lecture-écriture : une mémoire sur l'horloge k, qui part de ce tableau et reçoit les écritures |
-| `RDTbl(table, index)` | une opération sans mémoire : indexer la table |
+`Gen(T, g)`
+:   La sortie qui collecte. g est le signal du générateur, sur le repère T de la table ; `Gen(T, g)` est le signal du repère du haut qui vaut, à partir de l'étape de la table, le tableau des n valeurs de g.
+
+`ROTbl(n, gen)`
+:   La table en lecture seule : ce tableau, qui ne change plus.
+
+`WRTbl(k, n, gen, w, x)`
+:   La table en lecture-écriture : une mémoire sur l'horloge k, qui part de ce tableau et reçoit les écritures.
+
+`RDTbl(table, index)`
+:   Une opération sans mémoire : indexer la table.
 
 `Gen` est à la table ce que `Up` est à la région : `Up(p · r, y)` rend la dernière valeur, `Gen(⊤ · τ(n, G), g)` les rend toutes.
 
@@ -636,7 +643,7 @@ La règle de la région préserve l'invariant de la propagation (voir « Ce que 
 **[D] Un générateur ne capture que des signaux du repère du haut** : des constantes, des sliders, qui y valent leur valeur par défaut, et des tables. C'est la seule erreur d'horloge que l'utilisateur puisse commettre :
 
 ```faust
-process(x) = rdtable(16, x, index);    // erreur : le générateur capture l'entrée x
+process(x) = rdtable(16, x, index);    // erreur : x est capturé
 ```
 
 Les règles d'horloge la détectent sans vérification à part, puisque le signal capturé est sur une horloge incompatible avec T. Le message dit que le générateur d'une table lit un signal qui n'est pas sur le repère du haut.
@@ -664,11 +671,14 @@ Un slider est visible depuis le repère d'une table, et il y vaut sa valeur par 
 
 ## Trois sortes d'opérations
 
-| Sorte | Exemples | Horloge du résultat |
-| :--- | :--- | :--- |
-| **sans mémoire** | arithmétique, `select2`, `RDTbl`, `ROTbl` | la plus profonde de celles des arguments |
-| **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, `WRTbl`, fonction étrangère sans argument | l'horloge p · r qu'elle porte |
-| **sortie** | `Up` ; pour une table, `Gen` | le parent p de l'horloge p · r qu'elle porte |
+Sans mémoire
+:   L'arithmétique, `select2`, `RDTbl`, `ROTbl`. L'horloge du résultat est la plus profonde de celles des arguments.
+
+À horloge
+:   `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, `WRTbl`, une fonction étrangère sans argument. L'horloge du résultat est l'horloge p · r que porte l'opération.
+
+Sortie
+:   `Up` et, pour une table, `Gen`. L'horloge du résultat est le parent p de l'horloge p · r que porte l'opération.
 
 Une opération est **à horloge** quand son résultat dépend du nombre d'instants écoulés. Un retard de 1 sur une horloge n'est pas un retard de 1 sur une autre :
 
@@ -701,13 +711,13 @@ Deux jugements : ⊢ s : c se lit « s est un signal d'horloge c », et ⊢ c ok
 
 ```inference (top)
 ---
-⊢ ⊤ ok
+⊢ ⊤ \ ok
 ```
 
 ```inference (clk)
-⊢ p ok; ⊢ r : a; a ≤ p; r ∈ ℕ
+⊢ p \ ok; ⊢ r : a; a ≤ p; r ∈ ℕ
 ---
-⊢ p · r ok
+⊢ p · r \ ok
 ```
 
 ```inference (constante)
@@ -737,13 +747,13 @@ Deux jugements : ⊢ s : c se lit « s est un signal d'horloge c », et ⊢ c ok
 ```
 
 ```inference (mem)
-⊢ p · r ok; ⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ p · r; c2 ≤ p · r; p · r ≠ ⊤
+⊢ p · r \ ok; ⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ p · r; c2 ≤ p · r; p · r ≠ ⊤
 ---
 ⊢ Delay(p · r, s1, s2) : p · r
 ```
 
 ```inference (up)
-⊢ p · r ok; ⊢ y : a; a ≤ p · r
+⊢ p · r \ ok; ⊢ y : a; a ≤ p · r
 ---
 ⊢ Up(p · r, y) : p
 ```
@@ -792,34 +802,43 @@ Dans le domaine d'horizon (`HORIZON.md`), l'intervalle d'un signal est une forme
 
 **[P]** Les règles qui suivent sont déduites des définitions de la remontée et de la sortie. Elles sont proposées : elles n'ont pas été confrontées au code de `HorizonAlgebra`, et sont à valider lors de l'implémentation.
 
-**La valeur d'une horloge.** Dans ce domaine, une horloge p · r est son parent et l'intervalle [r₋, r₊] de sa cadence. Une cadence qui dépend du temps est d'abord effondrée vers son intervalle-horizon : sa somme serait quadratique. De cet intervalle viennent deux encadrements, où t est un instant de p et n un instant de p · r :
+**La valeur d'une horloge.** Dans ce domaine, une horloge p · r est son parent et l'intervalle [rmin, rmax] de sa cadence : rmin est sa plus petite valeur, rmax la plus grande. Une cadence qui dépend du temps est d'abord effondrée vers son intervalle-horizon : sa somme serait quadratique. De cet intervalle viennent deux encadrements, où t est un instant de p et n un instant de p · r :
 
 | Grandeur | Minorant | Majorant |
 | :--- | :--- | :--- |
-| fait(t) − 1, le dernier instant calculé | r₋·(t+1) − 1 | r₊·(t+1) − 1 |
-| π(n), la remontée | (n − r₊ + 1) / r₊ | n / r₋ ; l'horizon de p si r₋ = 0 |
+| fait(t) − 1, le dernier instant calculé | rmin·(t+1) − 1 | rmax·(t+1) − 1 |
+| π(n), la remontée | (n − rmax + 1) / rmax | n / rmin ; l'horizon de p si rmin = 0 |
 
-Si r₊ = 0, l'horloge n'a aucun instant : il n'y a ni vue ni forme, et toute sortie vaut 0. On suppose donc r₊ ≥ 1. Le minorant de π(n) est négatif pour n < r₊ − 1 ; on le remplace alors par 0.
+Si rmax = 0, l'horloge n'a aucun instant : il n'y a ni vue ni forme, et toute sortie vaut 0. On suppose donc rmax ≥ 1. Le minorant de π(n) est négatif pour n < rmax − 1 ; on le remplace alors par 0.
 
-**L'horizon d'une horloge.** L'horizon déclaré compte des échantillons : c'est celui du repère **S**. Pour une région, si l'horizon de p est Hₚ, celui de p · r est r₊·(Hₚ + 1) − 1. Il vaut donc Hₚ dans un `ondemand`, et environ N·Hₚ dans un `upsampling` de cadence N. Les repères de base ne suivent pas cette formule : l'horizon de **S** est déclaré, et le repère d'une table de taille n a exactement n instants, ce qui borne par n un compteur écrit dans un générateur.
+**L'horizon d'une horloge.** L'horizon déclaré compte des échantillons : c'est celui du repère **S**. Pour une région, si l'horizon de p est Hₚ, celui de p · r est rmax·(Hₚ + 1) − 1. Il vaut donc Hₚ dans un `ondemand`, et environ N·Hₚ dans un `upsampling` de cadence N. Les repères de base ne suivent pas cette formule : l'horizon de **S** est déclaré, et le repère d'une table de taille n a exactement n instants, ce qui borne par n un compteur écrit dans un générateur.
 
-**Les deux conversions.** La vue remplace t par l'encadrement de π(n) ; la sortie remplace n par celui de fait(t) − 1. Pour des formes croissantes (a₁ ≥ 0, b₁ ≥ 0) :
+**Les deux conversions.** La vue remplace t par l'encadrement de π(n) ; la sortie remplace n par celui de fait(t) − 1. Les deux tableaux valent pour des formes croissantes (a₁ ≥ 0, b₁ ≥ 0).
 
-| | Borne basse | Borne haute |
+La vue, depuis p · r, d'un signal de p :
+
+| Borne | Cas général | Si rmin = 0 |
 | :--- | :--- | :--- |
-| **vue** depuis p · r d'un signal de p | a₀ + a₁·(n − r₊ + 1)/r₊ | b₀ + b₁·n/r₋ ; b₀ + b₁·Hₚ si r₋ = 0 |
-| **sortie** `Up(p · r, y)` | a₀ + a₁·(r₋·(t+1) − 1) ; min(a₀, 0) si r₋ = 0 | b₀ + b₁·(r₊·(t+1) − 1) ; unie à 0 si r₋ = 0 |
+| basse | a₀ + a₁·(n − rmax + 1)/rmax | la même |
+| haute | b₀ + b₁·n/rmin | b₀ + b₁·Hₚ |
 
-La vue divise donc les pentes par la cadence, la sortie les multiplie. Quand la cadence peut être nulle, la borne haute d'une vue s'effondre vers sa valeur à l'horizon du parent, et la sortie est unie à 0. Le tableau se lit borne par borne : pour une borne de pente négative, les rôles de r₋ et r₊ s'échangent, et la sortie reste unie à 0 quand r₋ = 0.
+La sortie `Up(p · r, y)` :
 
-Les règles de valeur unissent la sortie à 0 quand la cadence peut être nulle au premier instant. Le domaine d'horizon ne connaît de la cadence que son intervalle : il le fait dès que r₋ = 0, même si la cadence vaut 1 au premier instant, comme celle d'un `downsampling`. C'est plus large, et sûr.
+| Borne | Cas général | Si rmin = 0 |
+| :--- | :--- | :--- |
+| basse | a₀ + a₁·(rmin·(t+1) − 1) | min(a₀, 0) |
+| haute | b₀ + b₁·(rmax·(t+1) − 1) | la même, unie à 0 |
+
+La vue divise donc les pentes par la cadence, la sortie les multiplie. Quand la cadence peut être nulle, la borne haute d'une vue s'effondre vers sa valeur à l'horizon du parent, et la sortie est unie à 0. Les tableaux se lisent borne par borne : pour une borne de pente négative, les rôles de rmin et rmax s'échangent, et la sortie reste unie à 0 quand rmin = 0.
+
+Les règles de valeur unissent la sortie à 0 quand la cadence peut être nulle au premier instant. Le domaine d'horizon ne connaît de la cadence que son intervalle : il le fait dès que rmin = 0, même si la cadence vaut 1 au premier instant, comme celle d'un `downsampling`. C'est plus large, et sûr.
 
 Deux vérifications, avec un compteur y(n) = n + 1 écrit dans la région :
 
-- dans un `ondemand` (r₋ = 0, r₊ = 1), la sortie est dans [0, 1 + t] : il n'y a pas plus de t + 1 demandes ;
+- dans un `ondemand` (rmin = 0, rmax = 1), la sortie est dans [0, 1 + t] : il n'y a pas plus de t + 1 demandes ;
 - dans un `upsampling` de cadence 4, la sortie vaut 4 + 4·t : la pente est multipliée par 4.
 
-**Les dates.** Un diagnostic daté à l'instant n de p · r l'est, dans le temps de p, à π(n) : au plus tôt à (n − r₊ + 1) / r₊. On remonte ainsi jusqu'aux échantillons.
+**Les dates.** Un diagnostic daté à l'instant n de p · r l'est, dans le temps de p, à π(n) : au plus tôt à (n − rmax + 1) / rmax. On remonte ainsi jusqu'aux échantillons.
 
 # Lois
 
@@ -980,29 +999,39 @@ virtual T Delay(const Clock<T>& clk, const T& x, const T& d) const = 0;
 virtual T Up(const Clock<T>& clk, const T& y) const = 0;
 ```
 
-Le repère du haut et la dérivation ne sont pas des opérations que chaque algèbre interprète : ce sont les constructeurs de la structure, les mêmes pour toutes. Dans l'arbre de signaux, ils sont des nœuds. La cadence d'une table, τ(n, G), y est un nœud à part, identifié par la taille et le circuit du générateur :
+Le repère du haut et la dérivation ne sont pas des opérations que chaque algèbre interprète : ce sont les constructeurs de la structure, les mêmes pour toutes. Dans l'arbre de signaux, ils sont des nœuds :
 
 ```adt
-Clock ::= Top                       (* le repère du haut : Top = Derive(Top, 1) *)
-        | Derive(Clock, Rate)       (* l'horloge de ce parent et de cette cadence *)
+Clock ::= Top
+        | Derive(Clock, Rate)
 
-Rate  ::= Sig                       (* un signal entier du parent *)
-        | Count                     (* la longueur des blocs : la cadence de S *)
-        | TblRate(n, G)             (* la cadence d'une table, identifiée par sa taille et le circuit de son générateur *)
-
-Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence est dans l'horloge *)
-        | Gen(Clock, g)             (* la sortie d'une table : toutes les valeurs du générateur g *)
-        | ROTbl(n, gen)             (* la table en lecture seule : sans horloge *)
-        | WRTbl(Clock, n, gen, w, x)     (* la table en lecture-écriture, sur l'horloge où elle est écrite *)
-        | Mem(Clock, x)             (* de même pour les opérations à horloge *)
-        | Delay(Clock, x, d)
-        | Prefix(Clock, x0, x)
-        | Fir(Clock, x, coefs)
-        | Iir(Clock, x, coefs)
-        | Irm(Clock, x, c)
-        | Waveform(Clock, w)
-        | FFun0(Clock, f)           (* une fonction étrangère sans argument *)
+Rate  ::= Sig
+        | Count
+        | TblRate(n, G)
 ```
+
+- `Top` est le repère du haut : `Top` = `Derive(Top, 1)`.
+- `Derive(Clock, Rate)` est l'horloge de ce parent et de cette cadence.
+- Une cadence est un signal entier du parent ; `Count` est la longueur des blocs, la cadence de **S** ; `TblRate(n, G)` est la cadence d'une table, identifiée par sa taille et le circuit de son générateur.
+
+Les opérations qui portent une horloge l'ont pour premier argument :
+
+```adt
+Sig ::= Up(Clock, y)
+      | Gen(Clock, g)
+      | WRTbl(Clock, n, gen, w, x)
+      | Mem(Clock, x)
+      | Delay(Clock, x, d)
+      | Prefix(Clock, x0, x)
+      | Fir(Clock, x, coefs)
+      | Iir(Clock, x, coefs)
+      | Irm(Clock, x, c)
+      | Waveform(Clock, w)
+      | FFun0(Clock, f)
+      | ROTbl(n, gen)
+```
+
+`Up` et `Gen` sont les deux sorties ; `FFun0` est une fonction étrangère sans argument ; `ROTbl`, la table en lecture seule, est la seule de la liste qui n'a pas d'horloge.
 
 Ce choix a trois raisons.
 
