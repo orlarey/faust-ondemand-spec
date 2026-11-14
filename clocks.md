@@ -42,7 +42,7 @@ language: fr
   - **Les règles** — les règles d'inférence.
   - **Règles de valeur** — ce que la sortie fait aux intervalles.
 - **Lois** — les égalités que le compilateur peut appliquer.
-- **Exemples** — le calcul déroulé à la main sur six programmes.
+- **Exemples** — le calcul déroulé à la main sur sept programmes.
 - **Parenté avec les langages synchrones** — ce qui est repris, ce qui diffère.
 - **La place dans l'approche algébrique** — l'horloge dans la signature.
   - **L'horloge dans la signature** — un opérande, pas une donnée.
@@ -759,6 +759,33 @@ output0[i] = fRec0[0];
 
 `ondemand(1)` donne `Up(c, 1)` : 0 jusqu'à la première demande, puis 1. C'est la sémantique de la spec v5.
 
+## Entrelacement
+
+`interleave(n, m, C)` est une primitive à venir. Elle transforme un circuit C à k·n entrées et k·m sorties en un circuit à n entrées et m sorties, dont chaque signal porte k signaux entrelacés ; k se déduit des arités de C. C s'exécute une fois tous les k instants, quand une trame est complète. Avec n = m = 1 et k = 4, (a0, b0, c0, d0) étant les sorties de C pour la première trame :
+
+| instant | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| entrée | x0 | x1 | x2 | x3 | x4 | x5 | x6 | x7 |
+| C reçoit | | | | x0 x1 x2 x3 | | | | x4 x5 x6 x7 |
+| sortie | 0 | 0 | 0 | a0 | b0 | c0 | d0 | a1 |
+
+Le calcul l'exprime sans rien ajouter. Sous l'horloge courante p, dont t est le temps :
+
+```
+⟦interleave(n, m, C)⟧ₚ(x₀ … xₙ₋₁) = (o₀ … oₘ₋₁)
+
+  c        = p · r,   r(t) = 1 si t mod k = k−1, 0 sinon
+  (y_b,j)  = ⟦C⟧_c( … Delay(p, x_a, k−1−j) … )       a < n,  j < k
+  o_b      = Up(c, y_b,j)   pour j = (t+1) mod k       b < m
+```
+
+- **L'horloge de C** est une sélection périodique de p.
+- **L'entrée** numéro a·k + j de C est le retard de k−1−j du signal x_a, pris dans le parent. Vu depuis c à l'instant m, il vaut x_a(k·m + j) : les k retards font la trame.
+- **La sortie** numéro b est choisie parmi les k sorties `Up(c, y_b,j)`, selon le temps du parent. À l'instant t = k·m + k−1 + j, elle vaut y_b,j(m).
+- **La latence** est de k−1 instants : une trame n'est traitée qu'une fois complète.
+
+Cette écriture est une définition, non une façon de compiler : elle demande k·n retards et k·m sorties, là où la primitive utiliserait des tampons de trame. C'est la raison d'en faire une primitive.
+
 # Parenté avec les langages synchrones
 
 Le calcul décrit une exécution synchrone et causale, et il reprend des notions établies.
@@ -903,21 +930,18 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 ## En attente
 
-- Rien pour l'instant.
+- La primitive `interleave(n, m, C)`, à introduire à terme pour l'efficacité. Le calcul la définit déjà par traduction (voir les exemples) ; il n'a besoin d'aucun concept nouveau.
 
 ## Ouvertes
 
 Q1
-:   `interleave(n, m, C)`, à terme : une primitive qui transforme un circuit C à k·n entrées et k·m sorties en un circuit à n entrées et m sorties, dont les signaux sont entrelacés. Sa traduction dans le calcul reste à écrire.
-
-Q2
 :   `switch(C0..Ck)` : des sélections de cadences complémentaires.
 
-Q3
+Q2
 :   Une cadence tantôt nulle, tantôt supérieure à 1. Le calcul la définit (ni sélection ni subdivision) ; faut-il l'accepter dans le langage ?
 
-Q4
+Q3
 :   La valeur d'une horloge dans le domaine des intervalles, et la conversion de l'horizon entre le temps d'un repère et celui de son parent.
 
-Q5
+Q4
 :   La vectorisation des régions de cadence constante.
