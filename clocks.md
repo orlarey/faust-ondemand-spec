@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v20
+subtitle: Spécification, brouillon v21
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -45,7 +45,7 @@ language: fr
 - **La place dans l'approche algébrique** — l'horloge dans la signature.
   - **L'horloge dans la signature** — un opérande, pas une donnée.
   - **Les deux formes** — forme normale et forme de calcul.
-  - **Le point fixe** — la graine des variables récursives.
+  - **Les groupes récursifs** — ils ne portent pas d'horloge, et leur horloge n'est pas un point fixe.
 - **Où le code est exécuté** — horloge d'un signal et horloge d'exécution.
 - **État de l'implémentation** — ce qui existe, sans effet sur le code généré.
 - **Décisions et questions** — ce qui est pris, en attente, ouvert.
@@ -766,16 +766,13 @@ Cône des décisions
 Typage léger
 :   L'horloge y généralise la cadence. Elle dit sur quel repère un signal est défini ; qu'un signal du repère du haut soit constant ou change à chaque bloc reste l'affaire de la variabilité.
 
-## Le point fixe
+## Les groupes récursifs
 
-L'horloge d'un groupe récursif se calcule par point fixe, à partir d'une supposition de départ, la graine. Deux graines donnent le même résultat :
+**[D]** Un groupe récursif ne porte pas d'horloge. C'est le `Mem` qui ferme sa boucle qui la porte. Les groupes récursifs restent ainsi une notion générale des arbres, indépendante des signaux Faust et de leurs horloges.
 
-- le repère du haut, qui ne suppose rien : le calcul descend tout seul, parce que toute boucle traverse une opération à horloge, et que cette opération annonce son horloge sans regarder ses arguments ;
-- l'horloge courante sous laquelle le groupe a été créé, que la propagation connaît : c'est celle du `Mem` qui ferme la boucle.
+L'horloge des projections d'un groupe se déduit de ses définitions : c'est la plus profonde de leurs horloges. Ce calcul n'est pas un point fixe. Dans une définition, toute référence au groupe passe par une opération à horloge, et l'horloge d'une telle opération ne dépend pas de celle de ses arguments : l'horloge du groupe ne peut donc pas influencer celle de sa propre définition. Quelle que soit l'horloge que l'on suppose au groupe pour évaluer ses définitions, le résultat est le même, et une seule évaluation suffit.
 
-La graine de la variabilité, transposée, serait l'horloge des échantillons. Elle est fausse pour un groupe écrit dans le générateur d'une table, dont le repère n'a pas les échantillons pour ancêtre.
-
-**[Q]** Laquelle des deux premières retenir.
+Le résultat est l'horloge courante sous laquelle la propagation a créé le groupe, dès que la boucle de retour est effectivement lue. Si le moteur de calcul d'attributs demande une valeur de départ pour les groupes récursifs, le repère du haut convient ; la valeur de départ de la variabilité, transposée en « horloge des échantillons », ne convient pas pour un groupe écrit dans le générateur d'une table.
 
 # Où le code est exécuté
 
@@ -814,14 +811,13 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - La sortie rend la dernière valeur calculée par la région.
 - Égalité structurelle des horloges.
 - L'écriture de table n'est pas une opération à horloge.
-- Les projections d'un groupe partagent une horloge.
+- Les projections d'un groupe partagent une horloge, la plus profonde de celles de ses définitions. Un groupe récursif ne porte pas d'horloge : c'est le `Mem` qui ferme sa boucle qui la porte.
 - L'horloge est calculée à côté de la variabilité.
 - Une branche d'horloge sur chaque opération à horloge, y compris hors région.
 - Spécifier d'abord ; implémenter après la bascule de `master-dev`.
 
 ## En attente
 
-- La graine des variables récursives.
 - La façon de donner au générateur d'une table une autre horloge que l'horloge courante.
 
 ## Ouvertes
