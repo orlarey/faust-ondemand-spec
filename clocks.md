@@ -373,6 +373,22 @@ Un groupe récursif est donc créé sous une horloge courante connue : celle du 
 
 Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand` dont la demande est un compteur modulo N écrit sur l'horloge courante. La fréquence d'échantillonnage appartient à la primitive, pas à l'horloge : la propagation la transporte à côté de l'horloge courante.
 
+**[D] Une région du langage est une sélection ou une subdivision.** Le calcul définit aussi les cadences mixtes, tantôt nulles, tantôt supérieures à 1, et il en a besoin : celle d'une table et celle des échantillons le sont. Mais le langage n'en offre pas à l'utilisateur, pour trois raisons :
+
+- les lois de la sélection et de la subdivision ne s'y appliquent pas ;
+- la fréquence d'échantillonnage vue à l'intérieur n'y a pas de valeur ;
+- le coût par instant du parent n'y est pas borné par l'écriture du programme.
+
+Une cadence mixte s'écrit par emboîtement, une sélection dans une subdivision, avec une borne explicite N :
+
+```
+c₁ = p · N               une subdivision de l'horloge courante
+j  = le temps de c₁ modulo N,  qui repart de 0 à chaque instant de p
+c₂ = c₁ · (j < r)        une sélection de c₁
+```
+
+Un circuit traduit sous c₂ s'exécute r fois pendant chaque instant de p, tant que r ≤ N. Dans le langage : `upsampling(ondemand(C)(j < r))(N)`. Chaque niveau reste pur : les lois s'appliquent, la fréquence vue à chaque niveau est définie, et le coût est borné par N.
+
 ## La règle de la région
 
 Le premier signal d'entrée devient la cadence, et le corps est propagé avec l'horloge courante prolongée par cette cadence :
@@ -666,7 +682,7 @@ p · r \text{ bien formée}
 - C'est un invariant que chaque transformation doit préserver. Sa vérification est une obligation de certification ; une violation est un défaut du compilateur. **[D]**
 - (op) est la règle de temporalité de `ATTRIBUTES.md` : le join des arguments consultés.
 - (proj) : les projections d'un groupe partagent une horloge, comme elles partagent une variabilité (« le groupe est couplé »). **[D]**
-- (clk) : r entier positif est une obligation de certification, prise sur la forme normale.
+- (clk) : r entier positif est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle porte en plus sur la nature de la cadence, lue dans son intervalle : toujours ≤ 1 pour `ondemand` et `downsampling`, toujours ≥ 1 pour `upsampling`.
 
 ## Règles de valeur
 
@@ -941,6 +957,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
 - Pas de `vectorize`, ni de sortie qui collecte en dehors des tables.
+- Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - Égalité structurelle des horloges.
 - La table écrite d'une `rwtable` porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur. Cela remplace la décision antérieure, selon laquelle l'écriture de table suivait l'horloge de ses arguments.
@@ -957,10 +974,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 ## Ouvertes
 
 Q1
-:   Une cadence tantôt nulle, tantôt supérieure à 1. Le calcul la définit (ni sélection ni subdivision) ; faut-il l'accepter dans le langage ?
-
-Q2
 :   La valeur d'une horloge dans le domaine des intervalles, et la conversion de l'horizon entre le temps d'un repère et celui de son parent.
 
-Q3
+Q2
 :   La vectorisation des régions de cadence constante.
