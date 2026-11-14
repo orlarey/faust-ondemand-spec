@@ -881,6 +881,8 @@ Le calcul l'exprime sans rien ajouter. L'horloge courante est notée ici p :
 
 Chaque circuit est dans une sélection, et les cadences sont complémentaires : une seule vaut 1 à chaque instant. Dans le langage, c'est `par(i, k+1, ondemand(Cᵢ)(s == i))` suivi d'un sélecteur.
 
+Le sélecteur doit rester dans 0..k, sans quoi aucun circuit ne s'exécute. Il est traité comme l'index d'une table : son appartenance à [0, k] est une obligation de certification, lue dans son intervalle, et il est saturé dans 0..k quand la preuve échoue. **[D]**
+
 La primitive apporterait deux choses :
 
 - **le code** : un seul `switch` au lieu de k+1 tests suivis d'une sélection ;
@@ -1046,7 +1048,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - La primitive `interleave(n, m, C)`, à introduire à terme pour l'efficacité. Le calcul la définit déjà par traduction (voir les exemples) ; il n'a besoin d'aucun concept nouveau.
 - Les règles du domaine d'horizon (encadrements, horizon d'une horloge, conversions de la vue et de la sortie) sont proposées ; elles sont à valider contre `HorizonAlgebra` lors de l'implémentation.
 - La vectorisation des régions : une boucle par horloge (voir « Où le code est exécuté »). À réaliser après le mode scalaire.
-- La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples).
+- La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples). Son sélecteur est traité comme l'index d'une table : une obligation de certification, et une saturation quand la preuve échoue.
 
 ## Ouvertes
 
