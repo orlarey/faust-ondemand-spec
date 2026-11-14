@@ -1,6 +1,6 @@
 # Un calcul d'horloges pour Faust
 
-**[Spécification, brouillon v8 — 13 novembre 2026]**
+**[Spécification, brouillon v9 — 14 novembre 2026]**
 
 Objet : la théorie des horloges qui servira de base à `ondemand`, `upsampling` et
 `downsampling` sur la lignée `master-dev-certification`.
@@ -19,113 +19,192 @@ Sources : `spec.md` (ondemand v5), les documents Expressive E, les slides IFC-24
 dans `faust-migration` : `FAUSTALGEBRA.md`, `LES-ALGEBRES-DE-TRANSFORMATION.md`,
 `ATTRIBUTES.md`, `FIXPOINT-SPEC.md`, `LA-FORME-DE-CALCUL.md`.
 
-## 1. Le calcul en une page
+## 1. Les horloges
 
-1. Le temps est un ensemble totalement ordonné d'**instants**. Une **horloge** est un
-   ensemble d'instants, ses **tops**. Un **signal** a une horloge et une valeur à chacun
-   de ses tops.
-2. Un signal se **lit** à un instant quelconque : sa valeur à son dernier top, et $0$
-   avant le premier.
-3. Il y a une horloge primitive, celle des blocs, et **une construction** :
-   $p \triangleright r$ a $r(\tau)$ tops à chaque top $\tau$ de $p$.
-4. Il y a **une relation** : $c$ *raffine* $p$ quand $c$ s'obtient de $p$ en ajoutant
-   des tops. Un signal se lit sans perte sur toute horloge qui raffine la sienne.
-5. Il y a **une opération** qui change d'horloge : `On(c, x)`, « $x$ vu de $c$ ».
-6. Les opérations qui **comptent le temps** (retards, filtres) portent leur horloge.
-   Les autres ont l'horloge la plus fine de leurs arguments.
-7. Dans un contexte, les horloges des signaux forment toujours une **chaîne**.
+Cette section ne parle que du temps. Les signaux n'arrivent qu'à la section 2.
 
-## 2. Le temps
+### 1.1 Les instants
 
-### 2.1 Instants, horloges, signaux
+On se donne un ensemble $\mathbb{T}$ d'**instants**, totalement ordonné : de deux
+instants distincts, l'un précède l'autre.
 
-$\mathbb{T}$ est l'ensemble des instants, totalement ordonné. Une horloge est une
-partie de $\mathbb{T}$. Un signal d'horloge $H$ est une fonction $H \to \mathbb{R}$.
+Les échantillons $0, 1, 2, \ldots$ sont des instants. Ce ne sont pas les seuls : il y a
+d'autres instants entre deux échantillons successifs. On en aura besoin en 1.4.
 
-Une **valeur** (un nombre, une constante calculée à l'initialisation) n'est pas un
-signal : elle est hors du temps et n'a pas d'horloge.
+### 1.2 Les horloges et leurs tops
 
-### 2.2 La lecture
+Une **horloge** est un ensemble d'instants. Ses éléments sont ses **tops**.
 
-La valeur d'un signal $x$ d'horloge $H$, lue à un instant $t$ quelconque :
+Deux horloges sont données par l'hôte, on les dit **naturelles** :
 
-$$x\lfloor t \rfloor = x(\max\{u \in H \mid u \le t\}) \qquad \text{et } 0 \text{ s'il n'y a pas encore eu de top}$$
+| Horloge | Ses tops |
+|---|---|
+| $\mathbf{S}$ | les échantillons |
+| $\mathbf{B}$ | les débuts de blocs : le premier échantillon de chaque appel de `compute` |
 
-C'est l'instant le plus proche qui respecte la causalité. Le « $\le$ » admet la lecture
-au même instant : un cycle de dépendances doit contenir un retard.
+### 1.3 Comparer deux horloges : l'inclusion
 
-**Cohérence.** Si $H \subseteq H'$, lire $x$ directement ou en passant par $H'$ donne
-le même résultat. Passer par une horloge qui contient la sienne est neutre ; passer par
-une autre peut perdre de l'information.
+Les horloges étant des ensembles, on les compare par l'inclusion. $H \subseteq H'$ dit
+que tout top de $H$ est un top de $H'$ : $H$ est **plus rare**, $H'$ **plus fine**.
 
-## 3. Les horloges
+Par exemple $\mathbf{B} \subseteq \mathbf{S}$ : un début de bloc est un échantillon.
 
-### 3.1 Une primitive, une construction
+Deux horloges peuvent n'être incluses ni l'une dans l'autre. C'est le cas de « un
+échantillon sur deux » et « un échantillon sur trois ».
 
-$$K ::= \mathbf{B} \;\mid\; K \triangleright r$$
+### 1.4 Dériver une horloge d'une autre
 
-- $\mathbf{B}$ est l'horloge des **blocs** : un top au début de chaque appel de
-  `compute`. Elle est donnée par l'hôte.
-- $p \triangleright r$ est l'horloge **dérivée** de $p$ par le signal de **cadence**
-  $r$, entier positif ou nul, d'horloge $p$. Elle a $r(\tau)$ tops à chaque top $\tau$
-  de $p$ :
+On fabrique une horloge à partir d'une autre en disant, pour chaque top de la première,
+combien de tops la seconde y place.
+
+Soit $p$ une horloge, et $r$ une fonction qui donne à chaque top $\tau$ de $p$ un
+entier $r(\tau) \ge 0$. L'horloge **dérivée** $p \triangleright r$ a $r(\tau)$ tops à
+chaque top $\tau$ de $p$. On appelle $p$ son **parent** et $r$ sa **cadence**.
+
+| $r(\tau)$ | Tops de $p \triangleright r$ à cet endroit |
+|---|---|
+| $0$ | aucun : le top $\tau$ est sauté |
+| $1$ | un seul : $\tau$ lui-même |
+| $n > 1$ | $n$ tops : $\tau$, puis $n - 1$ instants nouveaux, régulièrement répartis avant le top suivant de $p$ |
+
+Le premier des tops placés en $\tau$ est toujours $\tau$ lui-même : c'est la
+**convention « début »**. **[D]**
+
+Un exemple, avec quatre tops de $p$ :
+
+```
+p        :   τ0          τ1          τ2          τ3
+r        :   1           0           3           1
+p ▷ r    :   τ0                      τ2  ·  ·    τ3
+```
+
+En $\tau_1$ rien n'est placé. En $\tau_2$ sont placés $\tau_2$ et deux instants
+nouveaux, qui ne sont pas des tops de $p$.
+
+Formellement, les instants nouveaux se notent $\tau \cdot q$, avec $q$ une fraction de
+$[0, 1[$ qui dit à quelle proportion de l'intervalle entre $\tau$ et le top suivant ils
+se trouvent, et $\tau \cdot 0 = \tau$ :
 
 $$p \triangleright r = \{\tau \cdot \tfrac{j}{r(\tau)} \mid \tau \in p,\ 0 \le j < r(\tau)\}$$
 
-L'instant $\tau \cdot q$ est situé entre $\tau$ et le top suivant de $p$, à la
-proportion $q$. **[D] Convention « début »** : $\tau \cdot 0 = \tau$, le premier
-sous-instant est l'instant parent.
+### 1.5 Deux cas remarquables : sélection et subdivision
 
-L'horloge des **échantillons** n'est pas primitive : $\mathbf{S} = \mathbf{B} \triangleright \mathit{count}$,
-où $\mathit{count}$ est la taille du bloc.
+- Si $r$ ne vaut jamais plus de $1$, la dérivation ne fait que **sauter** des tops.
+  C'est une **sélection** : $p \triangleright r \subseteq p$.
+- Si $r$ vaut toujours au moins $1$, la dérivation ne fait qu'**ajouter** des tops.
+  C'est une **subdivision** : $p \subseteq p \triangleright r$.
 
-**[D] Égalité.** Deux horloges sont égales si elles ont même parent et même signal de
-cadence, comparé par identité d'arbre après mise en forme normale.
+Dans l'exemple ci-dessus, $r$ fait les deux : l'horloge obtenue n'est ni incluse dans
+$p$, ni plus fine que $p$.
 
-### 3.2 Le raffinement
+### 1.6 Le raffinement
 
-$c$ **raffine** $p$, noté $p \le c$, quand $c = p \triangleright r$ avec $r \ge 1$, ou
-par transitivité. Alors $p \subseteq c$ (par la convention « début »), et les deux
-horloges ont le même premier top.
+On dit que $c$ **raffine** $p$, et on note $p \le c$, quand $c$ s'obtient à partir de
+$p$ par une subdivision, ou par plusieurs subdivisions successives.
 
-- $r \ge 1$ : **subdivision**, $c$ raffine $p$.
-- $r \le 1$ : **sélection**, $c \subseteq p$, mais $c$ ne raffine pas $p$ et $p$ ne
-  raffine pas $c$.
+Si $c$ raffine $p$, alors :
 
-Chaque horloge a un seul parent : les horloges que $c$ raffine forment une **chaîne**,
-notée $\mathrm{Ch}(c)$. Par exemple
-$\mathrm{Ch}(\mathbf{S} \triangleright 4) = \{\mathbf{B}, \mathbf{S}, \mathbf{S} \triangleright 4\}$
-et $\mathrm{Ch}(\mathbf{S} \triangleright h) = \{\mathbf{S} \triangleright h\}$ pour
-une sélection.
+- $p \subseteq c$ : tous les tops de $p$ sont des tops de $c$ ;
+- $p$ et $c$ ont le même premier top.
 
-Le raffinement est la seule relation du calcul. Il est décidé par la forme du terme et
-par la preuve $r \ge 1$, jamais en comparant deux horloges quelconques.
+Le raffinement est plus exigeant que l'inclusion. Une sélection est incluse dans son
+parent, mais elle ne le raffine pas, et son parent ne la raffine pas non plus.
 
-### 3.3 Les trois primitives du langage
+Comme une horloge dérivée a un seul parent, les horloges qu'une horloge $c$ raffine se
+rangent en file, de la plus rare à la plus fine. On note $\mathrm{Ch}(c)$ cette
+**chaîne**, $c$ comprise.
 
-| Primitive | Cadence | Fréquence vue à l'intérieur |
-|---|---|---|
-| `ondemand(P)(h)` | $h$ | $\mathrm{SR}$ |
-| `upsampling(P)(N)` | $N$ | $N \cdot \mathrm{SR}$ |
-| `downsampling(P)(N)` | un top sur $N$ | $\mathrm{SR} / N$ |
+### 1.7 Une seule horloge primitive
+
+L'horloge des échantillons se dérive de celle des blocs : à chaque début de bloc, elle
+place autant de tops que le bloc compte d'échantillons.
+
+$$\mathbf{S} = \mathbf{B} \triangleright \mathit{count}$$
+
+C'est une subdivision : $\mathbf{S}$ raffine $\mathbf{B}$. Toutes les horloges du
+calcul s'obtiennent donc à partir de la seule horloge $\mathbf{B}$, par dérivation :
+
+$$K ::= \mathbf{B} \;\mid\; K \triangleright r$$
+
+Deux exemples de chaînes :
+
+- pour $c = \mathbf{S} \triangleright 4$ (quatre tops par échantillon) :
+  $\mathrm{Ch}(c) = \{\mathbf{B}, \mathbf{S}, c\}$ ;
+- pour $c = \mathbf{S} \triangleright h$ avec $h \le 1$ (une sélection) :
+  $\mathrm{Ch}(c) = \{c\}$.
+
+## 2. Les signaux
+
+### 2.1 Valeurs et signaux
+
+Une **valeur** est un nombre. Elle est hors du temps : elle n'a pas d'horloge.
+
+Un **signal** a une horloge, et une valeur à chacun des tops de cette horloge. Un
+signal d'horloge $H$ est une fonction $H \to \mathbb{R}$. Entre deux tops, il n'est
+pas défini.
+
+Les entrées audio sont des signaux d'horloge $\mathbf{S}$, les sliders des signaux
+d'horloge $\mathbf{B}$.
+
+### 2.2 Lire un signal à un instant quelconque
+
+On a souvent besoin de la valeur d'un signal à un instant qui n'est pas l'un de ses
+tops. On prend alors sa valeur au dernier top passé.
+
+La valeur d'un signal $x$ d'horloge $H$, **lue** à un instant $t$ :
+
+$$x\lfloor t \rfloor = x(\max\{u \in H \mid u \le t\}) \qquad \text{et } 0 \text{ s'il n'y a pas encore eu de top}$$
+
+Le « $\le$ » admet la lecture au top même.
+
+### 2.3 Quand la lecture est sans perte
+
+Lire un signal sur une horloge qui **contient** la sienne ne perd rien : on y retrouve
+toutes ses valeurs, chacune maintenue jusqu'à la suivante. C'est le cas d'un slider lu
+à chaque échantillon.
+
+Lire un signal sur une horloge qui ne contient pas la sienne peut en perdre : les
+valeurs prises entre deux tops du lecteur ne sont jamais vues.
+
+**Cohérence.** Si $H \subseteq H'$, lire un signal d'horloge $H$ directement, ou le
+lire d'abord sur $H'$ puis relire le résultat, donne la même chose.
+
+### 2.4 La cadence est un signal
+
+En 1.4 la cadence était une fonction quelconque. Dans un programme, c'est un signal :
+la cadence $r$ de $p \triangleright r$ est un signal entier, positif ou nul, d'horloge
+$p$. L'horloge et les signaux dépendent donc l'un de l'autre : un signal a une horloge,
+et une horloge dérivée est construite avec un signal.
+
+**[D] Égalité.** Deux horloges dérivées sont égales quand elles ont le même parent et
+le même signal de cadence, comparé par identité d'arbre après mise en forme normale.
+
+### 2.5 Les trois primitives du langage
+
+| Primitive | Cadence | Nature | Fréquence vue à l'intérieur |
+|---|---|---|---|
+| `ondemand(P)(h)` | $h$, qui vaut $0$ ou $1$ | sélection | $\mathrm{SR}$ |
+| `downsampling(P)(N)` | $1$ un top sur $N$, $0$ sinon | sélection | $\mathrm{SR} / N$ |
+| `upsampling(P)(N)` | $N$ | subdivision | $N \cdot \mathrm{SR}$ |
 
 Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand`
 dont la demande est un compteur modulo $N$ écrit sur l'horloge parente. La fréquence
 d'échantillonnage appartient à la primitive, pas à l'horloge : elle est résolue à la
 propagation.
 
-### 3.4 Le temps différé
+### 2.6 Le temps différé
 
 Le remplissage d'une table est le calcul d'un signal sur une horloge finie
-$\mathbf{D}_n$, dont les $n$ tops précèdent tous l'instant $0$. C'est une seconde
-racine. La table collecte les $n$ valeurs ; pour le temps réel c'est une valeur.
+$\mathbf{D}_n$, dont les $n$ tops précèdent tous l'échantillon $0$. C'est une seconde
+horloge primitive. La table collecte les $n$ valeurs ; pour le temps réel c'est une
+valeur.
 
 Le temps-programme (compilation, initialisation, exécution) n'est pas une horloge de
 signal : c'est la calculabilité, l'autre axe de `ATTRIBUTES.md`.
 
-## 4. Les opérations
+## 3. Les opérations
 
-### 4.1 Trois sortes d'opérations
+### 3.1 Trois sortes d'opérations
 
 | Sorte | Exemples | Horloge du résultat |
 |---|---|---|
@@ -144,7 +223,7 @@ process = ramp, ondemand(ramp);   // deux rampes distinctes
 L'écriture de table n'en est pas une : réécrire la même valeur au même index est sans
 effet, son état ne compte pas le temps. **[D]**
 
-### 4.2 `On` : voir un signal d'une autre horloge
+### 3.2 `On` : voir un signal d'une autre horloge
 
 $\mathtt{On}(k, x)$ est le signal d'horloge $k$ qui vaut $x\lfloor t \rfloor$ à chaque
 top $t$ de $k$. Appliqué à une valeur $v$, c'est le signal d'horloge $k$ qui vaut $v$ à
@@ -153,7 +232,7 @@ chaque top.
 Selon les horloges, `On` échantillonne (vers une horloge plus rare), maintient (vers
 une horloge qui contient celle de $x$), ou les deux.
 
-### 4.3 Règles d'horloge
+### 3.3 Règles d'horloge
 
 On note $\vdash s : k$ pour « $s$ est un signal d'horloge $k$ » et $\vdash s : \bot$
 pour « $s$ est une valeur ». $\bot \le k$ pour tout $k$.
@@ -181,16 +260,16 @@ $$\frac{\vdash \mathrm{def}_j(W) : k_j \quad \text{les } k_j \text{ en chaîne}}
 - (*clk*) : $r$ entier positif est une obligation de certification, prise sur la forme
   normale.
 
-### 4.4 L'invariant de chaîne
+### 3.4 L'invariant de chaîne
 
 **[D]** Dans le contexte lexical $c$, tout signal a une horloge de $\mathrm{Ch}(c)$.
 
 Les prémisses de (*op*), (*mem*) et (*proj*) sont donc toujours satisfaites. Ce n'est
-pas une contrainte pour l'utilisateur : la traduction établit l'invariant (section 5),
+pas une contrainte pour l'utilisateur : la traduction établit l'invariant (section 4),
 chaque transformation doit le préserver, et sa vérification est une obligation de
 certification. Une violation est un défaut du compilateur.
 
-### 4.5 Règles de valeur
+### 3.5 Règles de valeur
 
 Pour les attributs de valeur (nature, booléanité, intervalle), `On(k, x)` porte $x$ :
 
@@ -206,7 +285,7 @@ intervalle, ce qui pèse sur la certification d'un retard ou d'un index qui en d
 
 L'horloge d'une opération à horloge n'entre dans aucun attribut de valeur.
 
-## 5. La traduction des régions
+## 4. La traduction des régions
 
 Pour $P : n \to m$, dans le contexte $p$, avec $c = p \triangleright r$ :
 
@@ -230,7 +309,7 @@ La sortie est toujours un signal de l'horloge parente : c'est ce qui établit l'
 de chaîne, sans règle particulière. Deux régions voisines ne se lisent jamais
 directement.
 
-## 6. Lois
+## 5. Lois
 
 1. **Effacement** : $\mathtt{On}(k, x) = x$ si $x$ est un signal d'horloge $k' \le k$.
 2. **Absorption** : $\mathtt{On}(k, \mathtt{On}(k', x)) = \mathtt{On}(k, x)$ si
@@ -250,7 +329,7 @@ et de l'égalité structurelle. Elle est fausse pour un `upsampling`.
 
 **[P] Forme canonique** : la loi 3 fait remonter `On` vers les consommateurs.
 
-## 7. Exemples
+## 6. Exemples
 
 On note $c = \mathbf{S} \triangleright h$. Les codes sont ceux que les règles
 désignent ; ils n'ont pas été produits par un compilateur.
@@ -289,9 +368,9 @@ output0[i] = fOn0;
 **Constante.** `ondemand(1)` donne $\mathtt{On}(\mathbf{S}, \mathtt{On}(c, 1))$ : $0$
 jusqu'à la première demande, puis $1$. C'est la sémantique de la spec v5.
 
-## 8. La place dans l'approche algébrique
+## 7. La place dans l'approche algébrique
 
-### 8.1 L'horloge dans la signature
+### 7.1 L'horloge dans la signature
 
 L'arbre de signaux est l'algèbre initiale de la signature (`FAUSTALGEBRA.md`). Si
 l'arbre portait une horloge que la signature ignore, une transformation qui passe par
@@ -321,7 +400,7 @@ signature a deux paramètres, `FaustAlgebra<T, K>`. Avec deux sortes, confondre 
 signal et une horloge est une erreur de compilation, et chaque algèbre choisit son
 `K` ; en contrepartie toutes les algèbres existantes changent de forme. Non tranché.
 
-### 8.2 Les deux formes
+### 7.2 Les deux formes
 
 `LA-FORME-DE-CALCUL.md` distingue la forme normale, où l'on certifie, de la forme de
 calcul, qui porte les décisions comme données.
@@ -339,7 +418,7 @@ calcul, qui porte les décisions comme données.
 - **Typage léger.** L'horloge y remplace la cadence (constante, bloc, échantillon),
   dont elle est la généralisation.
 
-### 8.3 Le point fixe
+### 7.3 Le point fixe
 
 L'horloge est un attribut exact. Sa graine pour une variable récursive est le bas
 ($\bot$), et non une valeur pessimiste comme `kSamp` pour la variabilité : un groupe
@@ -347,7 +426,7 @@ L'horloge est un attribut exact. Sa graine pour une variable récursive est le b
 seul, parce que toute boucle traverse une opération à horloge. **[Q]** : garder le bas,
 ou fournir à l'itérateur l'horloge du contexte.
 
-## 9. Où le code est exécuté
+## 8. Où le code est exécuté
 
 L'horloge d'un signal dit quand sa valeur peut changer. Le compilateur choisit en plus
 où il émet le calcul.
@@ -364,7 +443,7 @@ Une région d'horloge est un nœud du graphe de son parent. Chaque horloge a son
 temps. Lire un signal hors de son horloge coûte une variable qui garde sa dernière
 valeur.
 
-## 10. État de l'implémentation
+## 9. État de l'implémentation
 
 Rien n'est implémenté au-delà de deux étapes sans effet sur le code généré, sur la
 branche `ccr-faae028d-7grw0l` de `grame-cncm/faust`, au-dessus de
@@ -382,7 +461,7 @@ branche `ccr-faae028d-7grw0l` de `grame-cncm/faust`, au-dessus de
 La projection de l'horloge sur la variabilité : une valeur donne `kKonst`,
 $\mathbf{B}$ donne `kBlock`, $\mathbf{S}$ et toute horloge dérivée donnent `kSamp`.
 
-## 11. Décisions et questions
+## 10. Décisions et questions
 
 **Prises**
 
@@ -398,8 +477,8 @@ $\mathbf{B}$ donne `kBlock`, $\mathbf{S}$ et toute horloge dérivée donnent `kS
 
 **En attente**
 
-- Une ou deux sortes dans la signature (8.1).
-- La graine des variables récursives (8.3).
+- Une ou deux sortes dans la signature (7.1).
+- La graine des variables récursives (7.3).
 
 **Ouvertes**
 
