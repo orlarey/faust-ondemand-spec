@@ -892,6 +892,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Une opération porte une horloge quand cette horloge ne se déduit pas de ses arguments.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
+- Pas de `vectorize`, ni de sortie qui collecte en dehors des tables.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - Égalité structurelle des horloges.
 - La table écrite d'une `rwtable` porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur. Cela remplace la décision antérieure, selon laquelle l'écriture de table suivait l'horloge de ses arguments.
@@ -907,7 +908,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 ## Ouvertes
 
 Q1
-:   Une sortie qui collecte, comme celle d'une table, hors de l'initialisation (`vectorize`, trames FFT, `interleave`) : il faudrait une cadence constante, ou bornée.
+:   `interleave(n, m, C)`, à terme : une primitive qui transforme un circuit C à k·n entrées et k·m sorties en un circuit à n entrées et m sorties, dont les signaux sont entrelacés. Sa traduction dans le calcul reste à écrire.
 
 Q2
 :   `switch(C0..Ck)` : des sélections de cadences complémentaires.
