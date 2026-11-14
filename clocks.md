@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v18
+subtitle: Spécification, brouillon v19
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -610,7 +610,24 @@ Une différence : dans ces langages tous les opérandes d'une opération ont la 
 
 L'arbre de signaux est l'algèbre initiale de la signature (`FAUSTALGEBRA.md`). Si l'arbre portait une horloge que la signature ignore, une transformation qui passe par `Delay(x, d)` rebâtirait un retard sans horloge : c'est la lacune de fidélité décrite dans `LES-ALGEBRES-DE-TRANSFORMATION.md`. L'horloge fait partie de la dénotation d'un retard ; sa place est dans la signature.
 
-**[P]** L'horloge est un opérande, pas une donnée : elle contient des signaux, ses cadences, que chaque interprétation interprète et chaque transformation transforme.
+**[D] L'horloge est une structure fixe, dont les cadences sont des `T`.** Une horloge n'est pas un signal, et sa structure ne dépend pas de l'interprétation : c'est toujours un parent et une cadence. Ce qui varie avec `T`, c'est seulement la représentation de la cadence, qui est un signal. La signature garde donc son unique paramètre, et l'horloge y est une structure définie une fois :
+
+```cpp
+template <typename T> struct Clock {
+    Clock<T> parent() const;
+    T        cadence() const;
+    bool     isTop() const;      // parent() == *this, cadence() == 1
+};
+```
+
+Les opérations à horloge reçoivent une horloge de plus :
+
+```cpp
+virtual T Delay(const Clock<T>& clk, const T& x, const T& d) const = 0;
+virtual T Up(const Clock<T>& clk, const T& y) const = 0;
+```
+
+Le repère du haut et la dérivation ne sont pas des opérations que chaque algèbre interprète : ce sont les constructeurs de la structure, les mêmes pour toutes. Dans l'arbre de signaux, ils sont des nœuds :
 
 ```adt
 Clock ::= Top                       (* le repère du haut : Top = Derive(Top, 1) *)
@@ -627,14 +644,23 @@ Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence
         | Waveform(Clock, w)
 ```
 
-| Algèbre | Valeur d'une horloge |
-| :--- | :--- |
-| arbres | le terme d'horloge |
-| horloges | l'horloge ; une opération à horloge vaut son horloge |
-| intervalles | les bornes de la cadence, pour convertir le temps d'un repère en temps de son parent |
-| nature, booléanité | rien |
+Ce choix a trois raisons.
 
-**[Q] Une ou deux sortes.** Soit l'horloge est un `T` comme les étiquettes, soit la signature a deux paramètres, `FaustAlgebra<T, K>`. Avec deux sortes, confondre un signal et une horloge est une erreur de compilation, et chaque algèbre choisit son `K` ; en contrepartie toutes les algèbres existantes changent de forme. Non tranché.
+- Une horloge n'est pas un `T` : `Clock<T>` et `T` sont deux types distincts, et intervertir une horloge et un signal est une erreur de compilation. Aucune algèbre n'a à inventer la nature ou l'intervalle d'une horloge.
+- La structure n'est pas un second paramètre libre : `FaustAlgebra<T>` garde sa forme, et seules les opérations qui comptent le temps changent.
+- La signature a déjà des structures fixes remplies de `T` : `Fir` et `Sum` prennent un vecteur de `T`.
+
+Chaque algèbre reçoit l'horloge avec ses cadences déjà interprétées dans son domaine :
+
+| Algèbre | Ce qu'elle reçoit | Ce qu'elle en fait |
+| :--- | :--- | :--- |
+| arbres | les arbres des cadences | elle rebâtit le terme d'horloge |
+| intervalles | les intervalles des cadences | les bornes pour convertir le temps d'un repère en temps de son parent |
+| nature, booléanité | les natures des cadences | rien |
+
+L'adaptateur évalue chaque cadence de l'horloge avant d'appeler l'opération, comme il le fait déjà pour les bornes d'un slider, rangées dans une liste imbriquée.
+
+Une algèbre abstraite ne peut pas reconnaître que deux horloges sont la même : deux cadences différentes peuvent avoir le même intervalle. L'identité d'une horloge n'existe qu'au niveau des arbres. Le calcul de l'horloge d'un signal, qui en a besoin, lit le nœud lui-même.
 
 ## Les deux formes
 
@@ -687,6 +713,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Les constantes et les sliders sont des signaux du repère du haut. Aucune opération à horloge n'y est écrite.
 - Pendant les étapes des tables, un slider vaut sa valeur par défaut.
 - La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
+- Dans la signature algébrique, l'horloge est une structure fixe `Clock<T>` dont les cadences sont des `T` ; la signature garde un seul paramètre.
 - Les tables sont sérialisées selon leurs dépendances, par une règle déterministe.
 - La sortie d'une table est celle des constructeurs existants, `sigWRTbl` et `sigGen` ; la taille de la table est la cadence de son repère.
 - La sortie d'une région est un signal de l'horloge parente.
@@ -700,7 +727,6 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 ## En attente
 
-- Une ou deux sortes dans la signature.
 - La graine des variables récursives.
 
 ## Ouvertes
