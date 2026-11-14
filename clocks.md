@@ -183,8 +183,12 @@ Depuis une subdivision, on voit toutes les valeurs du signal, chacune répétée
 Dans l'autre sens, il n'y a pas de fonction : pendant un instant du parent, une horloge peut avoir plusieurs instants, ou aucun. Sortir un signal demande donc de choisir une valeur. C'est la seule opération du calcul.
 
 ::: definition [Sortie]
-Soit c = p · r, et y un signal visible depuis c. La **sortie** `Up(c, y)` est le signal d'horloge p qui vaut, à l'instant t de p, la valeur de y au **dernier instant de c déjà fait** à la fin de t, c'est-à-dire à l'instant fait(t) − 1 de c. S'il n'y en a encore aucun, elle vaut 0.
+Soit p une horloge, r une cadence sur p, et y un signal visible depuis p · r. La **sortie** `Up(p · r, y)` est le signal d'horloge p qui vaut, à l'instant t de p, la valeur de y au **dernier instant de p · r déjà fait** à la fin de t, c'est-à-dire à l'instant fait(t) − 1, où fait(t) = r(0) + … + r(t). S'il n'y en a encore aucun, elle vaut 0.
 :::
+
+La sortie a donc trois opérandes : l'horloge parente p, la cadence r, et le signal y. Les deux premiers sont réunis dans l'horloge p · r, dont r est la dernière cadence. Quand une horloge est nommée, par exemple c = p · r, on écrit `Up(c, y)` ; la cadence est alors la dernière de c.
+
+La cadence est un véritable argument de la sortie : pour calculer `Up(p · r, y)` à l'instant t, il faut avoir calculé r jusqu'à t. La sortie **consulte** r, au sens de `ATTRIBUTES.md`, et en dépend dans le graphe des calculs.
 
 Pour une sélection, la sortie maintient la valeur entre deux instants de c. Pour une subdivision, elle rend la dernière valeur de chaque groupe : le résultat des itérations faites pendant l'instant du parent. **[D]**
 
@@ -238,22 +242,22 @@ Retard
 ```
 
 Vue
-:   Un signal d'horloge a, regardé depuis un repère descendant c, se lit en remontant.
+:   Un signal d'horloge a, regardé depuis un repère descendant c, se lit en remontant. La remontée se calcule avec les cadences qui séparent a de c.
 
 ```math
 ⟦s⟧_c(n) = ⟦s⟧_a(π(c → a)(n))
 ```
 
 Sortie
-:   Avec c = p · r. La cadence r est un signal : fait(t) se calcule en la lisant dans p.
+:   La cadence r est un signal : fait(t) se calcule en la lisant dans p.
 
 ```math
-⟦\mathsf{Up}(c, y)⟧_p(t) = ⟦y⟧_c(\mathit{fait}(t) - 1)
+⟦\mathsf{Up}(p · r, y)⟧_p(t) = ⟦y⟧_{p · r}(\mathit{fait}(t) - 1)
 \qquad\text{avec}\qquad
 \mathit{fait}(t) = ⟦r⟧_p(0) + ⟦r⟧_p(1) + … + ⟦r⟧_p(t)
 ```
 
-Seules les deux dernières règles sont nouvelles. Ce sont les deux seuls endroits où l'indice du crochet change.
+Seules les deux dernières règles sont nouvelles. Ce sont les deux seuls endroits où l'indice du crochet change, et les deux seuls où interviennent les cadences : la vue par la remontée, la sortie par le nombre d'instants faits.
 
 Pour que la première règle soit cohérente avec la vue, on prolonge la remontée : un instant négatif d'un repère remonte sur un instant négatif de son parent. La sortie vaut alors bien 0 tant que fait(t) = 0.
 
@@ -433,7 +437,7 @@ p · r \text{ bien formée}
 
 ## Règles de valeur
 
-Pour les attributs de valeur (nature, booléanité, intervalle), `Up(c, y)` porte y :
+Pour les attributs de valeur (nature, booléanité, intervalle), `Up(p · r, y)` porte y, et la cadence r n'y entre pas :
 
 - si la cadence vaut au moins 1 au premier instant du parent : la valeur de y. C'est toujours le cas d'une subdivision ;
 - sinon : la valeur de y **unie à** 0, ce que vaut la sortie tant que c n'a pas eu d'instant.
@@ -441,6 +445,8 @@ Pour les attributs de valeur (nature, booléanité, intervalle), `Up(c, y)` port
 La sortie porte l'union avec la valeur initiale, exactement comme le retard dans `FIXPOINT-SPEC.md` (Y@n = Y ⊔ α(0)).
 
 Conséquence à garder en tête : une valeur sortie d'un `ondemand` a 0 dans son intervalle, ce qui pèse sur la certification d'un retard ou d'un index qui en dépend.
+
+Pour les attributs de temporalité, la sortie consulte y et r : leurs deux temporalités entrent dans celle du résultat.
 
 L'horloge d'une opération à horloge n'entre dans aucun attribut de valeur.
 
@@ -542,7 +548,7 @@ L'arbre de signaux est l'algèbre initiale de la signature (`FAUSTALGEBRA.md`). 
 Clock ::= Top                       (* le repère du haut *)
         | Derive(Clock, rate)       (* une cadence de plus *)
 
-Sig   ::= Up(Clock, y)
+Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence est dans l'horloge *)
         | Collect(Clock, y)
         | Mem(Clock, x)
         | Delay(Clock, x, d)
