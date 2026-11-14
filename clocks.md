@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v16
+subtitle: Spécification, brouillon v17
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -180,7 +180,7 @@ Le premier échantillon n'a donc pas lieu pendant une étape d'initialisation : 
 
 Sous chaque repère de base, on construit des régions par les mêmes dérivations. Le calcul ne distingue pas l'initialisation de l'exécution : seule change l'étape qui héberge le repère de base.
 
-**[D]** Aucune opération qui compte le temps n'est écrite sur le repère du haut. `process` est traduit dans le repère des échantillons, chaque générateur dans le repère de sa table. Le repère du haut ne porte que des signaux sans mémoire : les constantes, les tables une fois remplies, et **[P]** les sliders.
+**[D]** Aucune opération qui compte le temps n'est écrite sur le repère du haut. `process` est traduit dans le repère des échantillons, chaque générateur dans le repère de sa table. Le repère du haut ne porte que des signaux sans mémoire : les constantes, les sliders, et les tables une fois remplies.
 
 # Les signaux
 
@@ -191,6 +191,7 @@ Un **signal** d'horloge c est une fonction qui donne une valeur réelle à chaqu
 :::
 
 - Une constante est un signal du repère du haut, qui prend la même valeur à chaque étape.
+- Un slider est un signal du repère du haut : une valeur par étape. Pendant les étapes des tables il vaut sa valeur par défaut ; pendant l'étape d'un bloc, la valeur réglée pour ce bloc. **[D]**
 - Une entrée audio est un signal d'horloge **S** : une valeur par échantillon.
 
 ## Voir un signal depuis un repère descendant
@@ -204,6 +205,8 @@ Soit x un signal d'horloge a, et c une horloge dont a est un ancêtre. La **vue*
 C'est une simple composition. Elle ne demande aucune opération dans le programme :
 
 - une constante, vue de n'importe où, vaut toujours la même chose ;
+- un slider vu de **S** garde la valeur de son bloc pendant tous les échantillons du bloc ;
+- un slider vu du générateur d'une table y vaut sa valeur par défaut, à tous les instants ;
 - une entrée audio vue d'un `ondemand` y prend la valeur qu'elle a aux échantillons où la demande est faite ;
 - une entrée audio vue d'un `upsampling` par N y garde sa valeur pendant N instants.
 
@@ -293,6 +296,16 @@ Seules les deux dernières règles sont nouvelles. Ce sont les deux seuls endroi
 Pour que la première règle soit cohérente avec la vue, on prolonge la remontée : un instant négatif d'un repère remonte sur un instant négatif de son parent. La sortie vaut alors bien 0 tant que fait(t) = 0.
 
 **Voir puis retarder n'est pas retarder puis voir.** Un retard d'horloge c, regardé depuis un repère plus profond, reste calculé dans c : c'est la règle de vue qui s'applique, pas celle du retard. L'horloge portée par le retard fixe le repère où l'on compte.
+
+**Un slider retardé.** Dans `process`, `slider'` est `Mem(S, u)` : le slider u est sur le repère du haut, le retard sur celui des échantillons. À l'échantillon n, le retard lit u à l'étape qui contient l'échantillon n − 1. Avec des blocs de 4 échantillons, u valant a puis b :
+
+```
+échantillon      n :  0  1  2  3  4  5  6  7
+u vu de S          :  a  a  a  a  b  b  b  b
+Mem(S, u)          :  0  a  a  a  a  b  b  b
+```
+
+C'est un retard d'un échantillon, non d'un bloc : l'horloge de l'argument dit où il est défini, l'horloge du retard dit où l'on compte.
 
 # Les régions
 
@@ -395,6 +408,8 @@ Deux conditions accompagnent ce choix :
 - le sens du programme ne dépend pas de l'ordre choisi entre deux tables indépendantes, puisqu'elles ne se lisent pas ;
 - l'ordre doit être fixé par une règle, pour que le compilateur reste déterministe : le numéro d'étape d'une table entre dans son horloge.
 
+**Un slider dans un générateur.** Un slider est visible depuis le repère d'une table, et il y vaut sa valeur par défaut : le générateur le voit comme une constante. La table est donc calculable à l'initialisation, et un réglage fait ensuite ne la modifie pas. Le compilateur actuel refuse ce programme (`checkInit failed`) ; ce serait une extension. **[D]**
+
 **Les cas croisés.** Une table est un signal du repère du haut : elle est visible de partout, y compris d'une région de l'exécution ou du générateur d'une table postérieure. La même expression écrite dans un générateur et dans `process` porte deux horloges différentes, et ses états ne sont pas partagés.
 
 # Les règles d'horloge
@@ -432,6 +447,11 @@ On note ⊢ s : c pour « s est un signal d'horloge c ».
 ```inference (constante)
 ---
 ⊢ k : ⊤
+```
+
+```inference (slider)
+---
+⊢ u : ⊤
 ```
 
 ```inference (entrée)
@@ -656,7 +676,8 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 - Chaque horloge a pour temps ℕ. Une horloge a un parent et une cadence ; le repère du haut est son propre parent, de cadence 1.
 - Le repère du haut a pour instants les étapes du programme : une par table, puis une par bloc.
-- Les constantes sont des signaux du repère du haut. Aucune opération à horloge n'y est écrite.
+- Les constantes et les sliders sont des signaux du repère du haut. Aucune opération à horloge n'y est écrite.
+- Pendant les étapes des tables, un slider vaut sa valeur par défaut.
 - La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
 - Les tables sont sérialisées selon leurs dépendances, par une règle déterministe.
 - La sortie d'une région est un signal de l'horloge parente.
@@ -670,7 +691,6 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 ## En attente
 
-- Les sliders sur le repère du haut, la calculabilité interdisant de les lire depuis une table.
 - `Collect` comme sortie d'une table.
 - Une ou deux sortes dans la signature.
 - La graine des variables récursives.
