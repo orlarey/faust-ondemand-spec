@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v14
+subtitle: Spécification, brouillon v15
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -235,10 +235,10 @@ Opération sans mémoire
 ```
 
 Retard
-:   C'est la formule habituelle, dans le repère c que porte le retard.
+:   C'est la formule habituelle, dans le repère p · r que porte le retard.
 
 ```math
-⟦\mathsf{Delay}(c, x, d)⟧_c(n) = ⟦x⟧_c(n - ⟦d⟧_c(n)) \qquad \text{pour } n ≥ 0
+⟦\mathsf{Delay}(p · r, x, d)⟧_{p · r}(n) = ⟦x⟧_{p · r}(n - ⟦d⟧_{p · r}(n)) \qquad \text{pour } n ≥ 0
 ```
 
 Vue
@@ -284,7 +284,7 @@ Pour P : n → m, dans le contexte p, avec c = p · r :
 \quad\text{où}\quad (y_1, …, y_m) = ⟦P⟧_c(x_1, …, x_n)
 ```
 
-Les entrées passent telles quelles : elles sont sur une horloge ancêtre de c, donc visibles depuis c. Il en va de même des constantes et des signaux extérieurs capturés. Dans la région, la composition `~` écrit un `Mem(c, …)`. Seules les sorties reçoivent une opération.
+Les entrées passent telles quelles : elles sont sur une horloge ancêtre de c, donc visibles depuis c. Il en va de même des constantes et des signaux extérieurs capturés. Dans la région, la composition `~` écrit un `Mem(p · r, …)`. Seules les sorties reçoivent une opération.
 
 La sortie d'une région est toujours un signal de l'horloge parente. Deux régions voisines ne se lisent donc jamais directement. **[D]**
 
@@ -373,8 +373,8 @@ Deux conditions accompagnent ce choix :
 | Sorte | Exemples | Horloge du résultat |
 | :--- | :--- | :--- |
 | **sans mémoire** | arithmétique, `select2`, lecture et écriture de table | la plus longue de celles des arguments |
-| **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, fonction étrangère sans argument | l'horloge c qu'elle porte |
-| **sortie** | `Up`, `Collect` | le parent de l'horloge c qu'elle porte |
+| **à horloge** | `Mem`, `Delay`, `Prefix`, `Fir`, `Iir`, `Irm`, `Waveform`, fonction étrangère sans argument | l'horloge p · r qu'elle porte |
+| **sortie** | `Up`, `Collect` | le parent p de l'horloge p · r qu'elle porte |
 
 Une opération est **à horloge** quand son résultat dépend du nombre d'instants écoulés. Un retard de 1 sur une horloge n'est pas un retard de 1 sur une autre :
 
@@ -382,6 +382,15 @@ Une opération est **à horloge** quand son résultat dépend du nombre d'instan
 ramp = +(1) ~ _;
 process = ramp, ondemand(ramp);   // deux rampes distinctes
 ```
+
+**[D] La cadence est visible.** Une opération à horloge s'écrit avec son horloge sous la forme parent · cadence : `Delay(p · r, x, d)`, `Mem(p · r, x)`, comme la sortie `Up(p · r, y)`. Deux conséquences :
+
+- une opération à horloge a toujours au moins une cadence : elle ne peut pas être écrite sur le repère du haut, sans qu'il faille le demander ;
+- au niveau principal, un retard s'écrit `Delay(⊤ · count, x, d)`, la cadence étant la longueur des blocs.
+
+La cadence ne joue pas le même rôle dans les deux cas. Dans une sortie, elle entre dans le calcul de la valeur. Dans une opération à horloge, elle dit seulement **quand** l'opération s'exécute : sa valeur, dans son propre repère, ne dépend que du nombre d'instants écoulés.
+
+Quand une horloge est nommée, par exemple **S** = ⊤ · count ou c = p · r, on écrit `Delay(S, x, d)` ou `Mem(c, x)` ; la cadence est alors la dernière de l'horloge.
 
 L'écriture de table n'en est pas une : réécrire la même valeur au même index est sans effet, son état ne compte pas le temps. **[D]**
 
@@ -406,9 +415,9 @@ On note ⊢ s : c pour « s est un signal d'horloge c ».
 ```
 
 ```inference (mem)
-⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ c; c2 ≤ c; c ≠ ⊤
+⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ p · r; c2 ≤ p · r
 ---
-⊢ Delay(c, s1, s2) : c
+⊢ Delay(p · r, s1, s2) : p · r
 ```
 
 ```inference (up)
@@ -550,7 +559,7 @@ Clock ::= Top                       (* le repère du haut *)
 
 Sig   ::= Up(Clock, y)              (* Clock = Derive(parent, rate) : la cadence est dans l'horloge *)
         | Collect(Clock, y)
-        | Mem(Clock, x)
+        | Mem(Clock, x)             (* de même pour les opérations à horloge *)
         | Delay(Clock, x, d)
         | Prefix(Clock, x0, x)
         | Fir(Clock, x, coefs)
@@ -617,6 +626,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Chaque horloge a pour temps ℕ ; une horloge est la suite des cadences qui y mènent.
 - Le repère du haut a pour instants les étapes du programme : une par table, puis une par bloc.
 - Les constantes sont des signaux du repère du haut. Aucune opération à horloge n'y est écrite.
+- La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
 - Les tables sont sérialisées selon leurs dépendances, par une règle déterministe.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
