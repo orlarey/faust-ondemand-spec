@@ -50,6 +50,7 @@ language: fr
   - **Les deux formes** — forme normale et forme de calcul.
   - **Les groupes récursifs** — ils ne portent pas d'horloge, et leur horloge n'est pas un point fixe.
 - **Où le code est exécuté** — horloge d'un signal et horloge d'exécution.
+  - **Une boucle par horloge** — ce que le calcul permet au mode vectoriel.
 - **État de l'implémentation** — ce qui existe, sans effet sur le code généré.
 - **Décisions et questions** — ce qui est pris, en attente, ouvert.
 :::
@@ -961,6 +962,16 @@ L'horloge d'un signal dit sur quel repère il est défini. Le compilateur choisi
 
 Une région d'horloge est un nœud du graphe de son parent. Chaque horloge a son compteur d'instants. Une sortie coûte au plus une variable qui garde la valeur choisie.
 
+## Une boucle par horloge
+
+Dans le code scalaire, une région est emboîtée dans la boucle de son parent : un `if (h)` pour un `ondemand`, un `for (j < N)` pour un `upsampling`. Le calcul permet une autre forme, celle du mode `-vec` : une boucle séparée par horloge.
+
+- **Une horloge se prête à une boucle par bloc.** Tous les signaux d'une horloge c partagent le même temps : ils peuvent être calculés par une boucle sur les instants de c écoulés pendant le bloc. La vue lit le tampon du parent à l'indice π(n) ; la sortie y écrit la valeur d'indice fait(t) − 1.
+- **Une cadence constante rend ces indices explicites.** Pour une cadence N, π(n) = n ÷ N et fait(t) − 1 = N·t + N − 1. La boucle de la région est régulière, sur un tampon N fois plus long, et vectorisable. Pour une cadence variable, il faudrait deux tampons d'indices remplis par la boucle du parent, ou garder la forme emboîtée.
+- **La séparation n'est pas toujours permise.** Si une récursion traverse la frontière, la région et son parent dépendent l'un de l'autre à chaque instant : ils restent dans la même boucle. C'est la règle actuelle du mode `-vec`, où une boucle est une composante fortement connexe du graphe des dépendances ; elle s'étend telle quelle.
+
+C'est ce que le calcul permet. La réalisation relève de la génération de code, et vient après le mode scalaire.
+
 # État de l'implémentation
 
 Rien n'est implémenté au-delà de deux étapes sans effet sur le code généré, sur la branche `ccr-faae028d-7grw0l` de `grame-cncm/faust`, au-dessus de `master-dev-certification-4`.
@@ -1005,9 +1016,9 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 - La primitive `interleave(n, m, C)`, à introduire à terme pour l'efficacité. Le calcul la définit déjà par traduction (voir les exemples) ; il n'a besoin d'aucun concept nouveau.
 - Les règles du domaine d'horizon (encadrements, horizon d'une horloge, conversions de la vue et de la sortie) sont proposées ; elles sont à valider contre `HorizonAlgebra` lors de l'implémentation.
+- La vectorisation des régions : une boucle par horloge (voir « Où le code est exécuté »). À réaliser après le mode scalaire.
 - La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples).
 
 ## Ouvertes
 
-Q1
-:   La vectorisation des régions de cadence constante.
+Aucune pour l'instant.
