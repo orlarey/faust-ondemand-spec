@@ -995,7 +995,8 @@ template <typename T> struct Clock {
 Les opérations qui portent une horloge, c'est-à-dire les opérations à horloge et les sorties, reçoivent une horloge de plus :
 
 ```cpp
-virtual T Delay(const Clock<T>& clk, const T& x, const T& d) const = 0;
+virtual T Delay(const Clock<T>& clk,
+                const T& x, const T& d) const = 0;
 virtual T Up(const Clock<T>& clk, const T& y) const = 0;
 ```
 
