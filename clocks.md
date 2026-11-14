@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v19
+subtitle: Spécification, brouillon v20
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -22,11 +22,19 @@ language: fr
   - **Sortir un signal vers le repère parent** — la dernière valeur calculée.
   - **La cadence est un signal** — refermer la boucle entre horloges et signaux.
 - **La sémantique** — le crochet indicé par un repère, et ses règles.
-- **Les régions** — les trois primitives et leur traduction.
+- **La propagation** — la traduction des circuits en signaux, où naissent les horloges.
+  - **L'horloge courante** — le paramètre que la propagation transporte.
+  - **Les règles** — qui ignore l'horloge courante, qui la transmet, qui la reçoit.
   - **Les trois primitives du langage** — ondemand, upsampling, downsampling.
-  - **La traduction** — une traduction uniforme.
+  - **La règle de la région** — la seule qui change l'horloge courante.
+  - **Ce que la propagation garantit** — un invariant, que les règles d'horloge vérifient.
   - **Un retard dans chaque région** — le même exemple déroulé trois fois.
 - **Les tables** — l'initialisation comme suite d'instants du repère du haut.
+  - **Une table et son repère** — un temps par table.
+  - **La sortie d'une table** — les constructeurs existants.
+  - **L'initialisation comme un tout** — l'ensemble ordonné des tables, sous un parent commun.
+  - **Le générateur et l'horloge courante** — une question ouverte.
+  - **Un slider dans un générateur** — sa valeur par défaut.
 - **Les règles d'horloge** — dire quelle horloge a le résultat d'une opération.
   - **Trois sortes d'opérations** — sans mémoire, à horloge, sortie.
   - **Les règles** — les règles d'inférence.
@@ -307,7 +315,51 @@ Mem(S, u)          :  0  a  a  a  a  b  b  b
 
 C'est un retard d'un échantillon, non d'un bloc : l'horloge de l'argument dit où il est défini, l'horloge du retard dit où l'on compte.
 
-# Les régions
+# La propagation
+
+Les horloges ne sont pas déduites après coup : elles naissent pendant la **propagation**, la traduction d'un circuit Faust en signaux. La propagation transporte une horloge courante et la donne à tout ce qui compte le temps.
+
+## L'horloge courante
+
+La traduction d'un circuit C reçoit, en plus de ses signaux d'entrée, une **horloge courante** k. On la note en indice :
+
+```math
+⟦C⟧_k(x_1, …, x_n) = (y_1, …, y_m)
+```
+
+`process` est propagé avec l'horloge des échantillons, **S** = ⊤ · count.
+
+## Les règles
+
+Les circuits qui ne comptent pas le temps ignorent l'horloge courante.
+
+```math
+⟦n⟧_k() = (n) \qquad ⟦\_⟧_k(x) = (x) \qquad ⟦!⟧_k(x) = () \qquad ⟦⋆⟧_k(x, y) = (⋆(x, y))
+```
+
+Un slider se traduit par lui-même : c'est un signal du repère du haut, quelle que soit l'horloge courante.
+
+Les compositions la transmettent, inchangée, à leurs deux branches.
+
+```math
+⟦A : B⟧_k(x) = ⟦B⟧_k(⟦A⟧_k(x)) \qquad ⟦A , B⟧_k(x, y) = (⟦A⟧_k(x),\ ⟦B⟧_k(y))
+```
+
+Il en va de même de `<:` et de `:>`.
+
+Les circuits qui comptent le temps la reçoivent.
+
+```math
+⟦@⟧_k(x, d) = (\mathsf{Delay}(k, x, d)) \qquad ⟦'⟧_k(x) = (\mathsf{Mem}(k, x))
+```
+
+La composition récursive écrit sa boucle de retour avec l'horloge courante. Pour A ~ B, avec W le groupe récursif créé :
+
+```math
+⟦A \sim B⟧_k(x) = (y) \quad\text{où}\quad (z) = ⟦B⟧_k(\mathsf{Mem}(k, W)), \quad (y) = ⟦A⟧_k(z, x), \quad W := (y)
+```
+
+Un groupe récursif est donc créé sous une horloge courante connue : celle du `Mem` qui ferme sa boucle.
 
 ## Les trois primitives du langage
 
@@ -317,20 +369,30 @@ C'est un retard d'un échantillon, non d'un bloc : l'horloge de l'argument dit o
 | `downsampling(P)(N)` | 1 un instant sur N, 0 sinon | sélection | SR / N |
 | `upsampling(P)(N)` | N | subdivision | N · SR |
 
-Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand` dont la demande est un compteur modulo N écrit sur l'horloge parente. La fréquence d'échantillonnage appartient à la primitive, pas à l'horloge : elle est résolue à la propagation.
+Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand` dont la demande est un compteur modulo N écrit sur l'horloge courante. La fréquence d'échantillonnage appartient à la primitive, pas à l'horloge : la propagation la transporte à côté de l'horloge courante.
 
-## La traduction
+## La règle de la région
 
-Pour P : n → m, dans le contexte p, avec c = p · r :
+C'est la seule règle qui change l'horloge courante. Le premier signal d'entrée devient la cadence, et le corps est propagé avec l'horloge courante prolongée par cette cadence :
 
 ```math
-⟦\mathsf{region}(P)⟧_p(r, x_1, …, x_n) = (\mathsf{Up}(c, y_1), …, \mathsf{Up}(c, y_m))
-\quad\text{où}\quad (y_1, …, y_m) = ⟦P⟧_c(x_1, …, x_n)
+⟦\mathsf{region}(C)⟧_k(r, x_1, …, x_n) = (\mathsf{Up}(k · r, y_1), …, \mathsf{Up}(k · r, y_m))
+\quad\text{où}\quad (y_1, …, y_m) = ⟦C⟧_{k · r}(x_1, …, x_n)
 ```
 
-Les entrées passent telles quelles : elles sont sur une horloge ancêtre de c, donc visibles depuis c. Il en va de même des constantes et des signaux extérieurs capturés. Dans la région, la composition `~` écrit un `Mem(p · r, …)`. Seules les sorties reçoivent une opération.
+Trois choses s'y passent :
 
-La sortie d'une région est toujours un signal de l'horloge parente. Deux régions voisines ne se lisent donc jamais directement. **[D]**
+1. la cadence r, un signal de l'horloge k, forme la nouvelle horloge k · r ;
+2. le corps C est propagé avec cette horloge courante : tous ses retards la recevront ;
+3. chaque sortie est ramenée sur l'horloge k par une sortie `Up`.
+
+Les autres entrées passent telles quelles : elles sont sur une horloge ancêtre de k · r, donc visibles. Il en va de même des constantes, des sliders et des signaux extérieurs capturés.
+
+La sortie d'une région est toujours un signal de l'horloge où la région est écrite. Deux régions voisines ne se lisent donc jamais directement. **[D]**
+
+## Ce que la propagation garantit
+
+Dans un programme propagé sous l'horloge courante k, tout signal a pour horloge un ancêtre de k. Les règles d'horloge données plus loin ne servent donc pas à trouver les horloges : elles vérifient ce que la propagation a construit, et ce que chaque transformation doit préserver.
 
 ## Un retard dans chaque région
 
@@ -381,7 +443,11 @@ Dans un `upsampling`, un retard plus court que le facteur est invisible de l'ext
 
 # Les tables
 
-Le remplissage d'une table de taille n est le calcul d'un signal sur un repère de base qui a n instants, tous pendant une même étape du repère du haut. Le générateur est un circuit sans entrée, traduit dans ce repère : ses retards et ses récursions y avancent d'un pas par instant. « Les n premiers instants d'un signal » se lit littéralement.
+## Une table et son repère
+
+Le remplissage d'une table de taille n est le calcul d'un signal sur un repère de base qui a n instants, tous pendant une même étape du repère du haut. Le générateur y avance d'un pas par instant : « les n premiers instants d'un signal » se lit littéralement.
+
+Chaque table a son propre repère. Deux raisons l'imposent : chaque générateur repart de son instant 0 et s'arrête à sa propre taille, et une table qui en lit une autre a besoin qu'elle soit complète.
 
 Le générateur d'une table est un programme comme un autre. Il peut contenir des régions :
 
@@ -399,7 +465,9 @@ process = rdtable(1024, gen, index);
    └─ régions de process
 ```
 
-**La sortie d'une table.** Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes. Le compilateur a déjà les constructeurs pour cela, et ils se lisent directement dans le calcul :
+## La sortie d'une table
+
+Une sortie `Up` ne garderait que la dernière des n valeurs. La table les garde toutes. Le compilateur a déjà les constructeurs pour cela, et ils se lisent directement dans le calcul :
 
 | Constructeur existant | Lecture dans le calcul |
 | :--- | :--- |
@@ -409,16 +477,36 @@ process = rdtable(1024, gen, index);
 
 La taille de la table est la cadence de son repère : `sigWRTbl` a donc déjà les deux opérandes d'une sortie, la cadence et le signal. Ce qui manque aux constructeurs actuels est l'horloge : le repère de la table, que portent les opérations à horloge du générateur.
 
-**Les dépendances entre tables.** Le générateur d'une table peut lire une autre table. Les tables forment un graphe de dépendances, que l'on sérialise : chaque table reçoit une étape, postérieure à celles des tables qu'elle lit. Une table ne lit donc que le passé, et l'exécution vient après toutes. **[D]**
+## L'initialisation comme un tout
 
-Deux conditions accompagnent ce choix :
+L'initialisation est un seul objet : l'ensemble des tables du programme, ordonné par leurs dépendances, sous leur parent commun, le repère du haut. **[D]**
+
+- **Les tables sont recensées sur tout le programme**, qu'elles apparaissent dans `process` ou dans le générateur d'une autre table. Elles sont toutes au même niveau : aucune n'est à l'intérieur d'une autre.
+- **Elles sont ordonnées une fois**, selon leurs dépendances. Chaque table reçoit une étape du repère du haut, postérieure à celles des tables qu'elle lit. Une table ne lit donc que le passé, et l'exécution vient après toutes.
+- **Elles sont accessibles les unes aux autres par leur parent commun.** Une table remplie est un signal du repère du haut : elle est visible de tous les repères, y compris de celui d'une table postérieure et de toute région de l'exécution.
+- **Une table est identifiée par ce qu'elle est**, sa taille et son générateur. Deux lectures de la même table désignent le même objet, rempli une seule fois.
+
+Deux conditions accompagnent la sérialisation :
 
 - le sens du programme ne dépend pas de l'ordre choisi entre deux tables indépendantes, puisqu'elles ne se lisent pas ;
-- l'ordre doit être fixé par une règle, pour que le compilateur reste déterministe : le numéro d'étape d'une table entre dans son horloge.
+- l'ordre doit être fixé par une règle, pour que le compilateur reste déterministe.
 
-**Un slider dans un générateur.** Un slider est visible depuis le repère d'une table, et il y vaut sa valeur par défaut : le générateur le voit comme une constante. La table est donc calculable à l'initialisation, et un réglage fait ensuite ne la modifie pas. Le compilateur actuel refuse ce programme (`checkInit failed`) ; ce serait une extension. **[D]**
+Le compilateur actuel ne procède pas ainsi : il compile une table dans le conteneur du générateur qui la lit. Sur `master-dev-certification-4`, une table dont le générateur lit une autre table est mal compilée (constaté le 14 novembre : en `cpp` la table lue n'est jamais remplie, en `ocpp` le code émis ne s'édite pas). Un même générateur pour deux tables de tailles différentes est en revanche correct : une classe par générateur, une instance par table.
 
-**Les cas croisés.** Une table est un signal du repère du haut : elle est visible de partout, y compris d'une région de l'exécution ou du générateur d'une table postérieure. La même expression écrite dans un générateur et dans `process` porte deux horloges différentes, et ses états ne sont pas partagés.
+## Le générateur et l'horloge courante
+
+**[Q]** `rdtable` est une primitive qui reçoit des signaux, pas un circuit : quand la propagation l'atteint, le générateur a déjà été traduit avec l'horloge courante. Ses opérations à horloge portent donc l'horloge courante, et non le repère de la table.
+
+Or un générateur et le même signal utilisé normalement doivent être deux arbres distincts : chacun a son état et sa boucle, et seule l'horloge peut les distinguer. Il faut donc que le générateur porte une autre horloge que l'horloge courante.
+
+Une voie est de changer l'horloge du générateur au moment où l'on construit la table : remplacer partout l'horloge courante par le repère de la table. C'est possible parce qu'un générateur ne dépend d'aucune entrée. Une formulation plus élégante est à trouver. Ce que l'on sait :
+
+- le code d'un générateur ne dépend pas de l'horloge sous laquelle il tourne ; une horloge de base correspond à une instance, un état et une boucle ;
+- le numéro d'étape d'une table n'est connu qu'une fois toutes les tables recensées et ordonnées, donc après la propagation.
+
+## Un slider dans un générateur
+
+Un slider est visible depuis le repère d'une table, et il y vaut sa valeur par défaut : le générateur le voit comme une constante. La table est donc calculable à l'initialisation, et un réglage fait ensuite ne la modifie pas. Le compilateur actuel refuse ce programme (`checkInit failed`) ; ce serait une extension. **[D]**
 
 # Les règles d'horloge
 
@@ -680,9 +768,14 @@ Typage léger
 
 ## Le point fixe
 
-L'horloge est un attribut exact. Sa graine pour une variable récursive est le repère du haut, et non une valeur pessimiste comme `kSamp` pour la variabilité : un groupe écrit dans un `ondemand` n'est pas sur l'horloge échantillon. Le calcul descend tout seul, parce que toute boucle traverse une opération à horloge.
+L'horloge d'un groupe récursif se calcule par point fixe, à partir d'une supposition de départ, la graine. Deux graines donnent le même résultat :
 
-**[Q]** Garder le repère du haut, ou fournir à l'itérateur l'horloge du contexte.
+- le repère du haut, qui ne suppose rien : le calcul descend tout seul, parce que toute boucle traverse une opération à horloge, et que cette opération annonce son horloge sans regarder ses arguments ;
+- l'horloge courante sous laquelle le groupe a été créé, que la propagation connaît : c'est celle du `Mem` qui ferme la boucle.
+
+La graine de la variabilité, transposée, serait l'horloge des échantillons. Elle est fausse pour un groupe écrit dans le générateur d'une table, dont le repère n'a pas les échantillons pour ancêtre.
+
+**[Q]** Laquelle des deux premières retenir.
 
 # Où le code est exécuté
 
@@ -714,7 +807,8 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Pendant les étapes des tables, un slider vaut sa valeur par défaut.
 - La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
 - Dans la signature algébrique, l'horloge est une structure fixe `Clock<T>` dont les cadences sont des `T` ; la signature garde un seul paramètre.
-- Les tables sont sérialisées selon leurs dépendances, par une règle déterministe.
+- L'initialisation est traitée comme un tout : l'ensemble des tables, recensées sur tout le programme, ordonnées selon leurs dépendances par une règle déterministe, sous le repère du haut.
+- Les horloges naissent à la propagation, qui transporte une horloge courante ; la règle de la région est la seule qui la change.
 - La sortie d'une table est celle des constructeurs existants, `sigWRTbl` et `sigGen` ; la taille de la table est la cadence de son repère.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
@@ -728,6 +822,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 ## En attente
 
 - La graine des variables récursives.
+- La façon de donner au générateur d'une table une autre horloge que l'horloge courante.
 
 ## Ouvertes
 
