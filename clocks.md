@@ -1,6 +1,6 @@
 # Un calcul d'horloges pour Faust
 
-**[Spécification, brouillon v9 — 14 novembre 2026]**
+**[Spécification, brouillon v10 — 14 novembre 2026]**
 
 Objet : la théorie des horloges qui servira de base à `ondemand`, `upsampling` et
 `downsampling` sur la lignée `master-dev-certification`.
@@ -21,81 +21,85 @@ dans `faust-migration` : `FAUSTALGEBRA.md`, `LES-ALGEBRES-DE-TRANSFORMATION.md`,
 
 ## 1. Les horloges
 
-Cette section ne parle que du temps. Les signaux n'arrivent qu'à la section 2.
+Cette section ne parle que du temps. Les signaux n'arrivent qu'à la section 2. Tout y
+est construit sur $\mathbb{N}$ et $\mathbb{Q}$.
 
-### 1.1 Les instants
+### 1.1 Les dates
 
-On se donne un ensemble $\mathbb{T}$ d'**instants**, totalement ordonné : de deux
-instants distincts, l'un précède l'autre.
+Une **date** est un nombre rationnel positif ou nul, un élément de $\mathbb{Q}^+$.
+L'unité est l'échantillon : la date $n \in \mathbb{N}$ est celle de l'échantillon $n$,
+et $2{,}5$ est à mi-chemin entre les échantillons $2$ et $3$.
 
-Les échantillons $0, 1, 2, \ldots$ sont des instants. Ce ne sont pas les seuls : il y a
-d'autres instants entre deux échantillons successifs. On en aura besoin en 1.4.
+Les dates sont ordonnées comme les nombres. On n'a pas besoin des réels : toutes les
+dates du calcul s'obtiennent en divisant des entiers.
 
-### 1.2 Les horloges et leurs tops
+### 1.2 Les tops
 
-Une **horloge** est un ensemble d'instants. Ses éléments sont ses **tops**.
+Un **top** est un couple $(d, \delta)$ formé d'une date $d \in \mathbb{Q}^+$ et d'une
+**durée** $\delta \in \mathbb{Q}$, $\delta > 0$. Il occupe l'intervalle de dates
+$[d,\ d + \delta[$ : il commence à $d$ et dure $\delta$.
 
-Deux horloges sont données par l'hôte, on les dit **naturelles** :
+Par exemple $(3, 1)$ est l'échantillon $3$ : il commence à la date $3$ et dure un
+échantillon.
 
-| Horloge | Ses tops |
-|---|---|
-| $\mathbf{S}$ | les échantillons |
-| $\mathbf{B}$ | les débuts de blocs : le premier échantillon de chaque appel de `compute` |
+### 1.3 Les horloges
 
-### 1.3 Comparer deux horloges : l'inclusion
+Une **horloge** est un ensemble de tops dont les intervalles sont deux à deux
+disjoints. On peut donc ranger ses tops par dates croissantes : premier top, deuxième
+top, etc.
 
-Les horloges étant des ensembles, on les compare par l'inclusion. $H \subseteq H'$ dit
-que tout top de $H$ est un top de $H'$ : $H$ est **plus rare**, $H'$ **plus fine**.
+Deux horloges sont données par l'hôte :
 
-Par exemple $\mathbf{B} \subseteq \mathbf{S}$ : un début de bloc est un échantillon.
+- l'horloge des **échantillons**, $\mathbf{S} = \{(n, 1) \mid n \in \mathbb{N}\}$ ;
+- l'horloge des **blocs**. Si les appels successifs de `compute` commencent aux
+  échantillons $b_0 = 0 < b_1 < b_2 < \ldots$, alors
+  $\mathbf{B} = \{(b_k,\ b_{k+1} - b_k) \mid k \in \mathbb{N}\}$ : un top par bloc, qui
+  commence avec le bloc et dure autant que lui.
 
-Deux horloges peuvent n'être incluses ni l'une dans l'autre. C'est le cas de « un
-échantillon sur deux » et « un échantillon sur trois ».
+Avec des blocs de 64 échantillons, $\mathbf{B} = \{(0, 64), (64, 64), (128, 64), \ldots\}$.
 
 ### 1.4 Dériver une horloge d'une autre
 
-On fabrique une horloge à partir d'une autre en disant, pour chaque top de la première,
-combien de tops la seconde y place.
+On fabrique une horloge à partir d'une autre en découpant chacun de ses tops en parts
+égales.
 
-Soit $p$ une horloge, et $r$ une fonction qui donne à chaque top $\tau$ de $p$ un
-entier $r(\tau) \ge 0$. L'horloge **dérivée** $p \triangleright r$ a $r(\tau)$ tops à
-chaque top $\tau$ de $p$. On appelle $p$ son **parent** et $r$ sa **cadence**.
+Soit $p$ une horloge, et $r : p \to \mathbb{N}$ une fonction qui donne à chaque top de
+$p$ un entier. L'horloge **dérivée** $p \triangleright r$ remplace chaque top
+$\tau = (d, \delta)$ de $p$ par $r(\tau)$ tops de durée $\delta / r(\tau)$, mis bout à
+bout à partir de $d$ :
 
-| $r(\tau)$ | Tops de $p \triangleright r$ à cet endroit |
+$$p \triangleright r = \left\{ \left(d + j \cdot \tfrac{\delta}{r(\tau)},\ \tfrac{\delta}{r(\tau)}\right) \;\middle|\; \tau = (d, \delta) \in p,\ 0 \le j < r(\tau) \right\}$$
+
+On appelle $p$ le **parent** et $r$ la **cadence**.
+
+| $r(\tau)$ | Ce que devient le top $\tau = (d, \delta)$ |
 |---|---|
-| $0$ | aucun : le top $\tau$ est sauté |
-| $1$ | un seul : $\tau$ lui-même |
-| $n > 1$ | $n$ tops : $\tau$, puis $n - 1$ instants nouveaux, régulièrement répartis avant le top suivant de $p$ |
+| $0$ | rien : le top est supprimé |
+| $1$ | lui-même |
+| $n > 1$ | $n$ tops de durée $\delta / n$, aux dates $d,\ d + \delta/n,\ \ldots$ |
 
-Le premier des tops placés en $\tau$ est toujours $\tau$ lui-même : c'est la
-**convention « début »**. **[D]**
+Le premier des tops issus de $\tau$ commence toujours à la date de $\tau$. **[D]**
 
-Un exemple, avec quatre tops de $p$ :
+Un exemple, sur quatre échantillons :
 
 ```
-p        :   τ0          τ1          τ2          τ3
-r        :   1           0           3           1
-p ▷ r    :   τ0                      τ2  ·  ·    τ3
+p        :  (0,1)        (1,1)        (2,1)                    (3,1)
+r        :   1            0            3                         1
+p ▷ r    :  (0,1)                     (2,⅓) (2⅓,⅓) (2⅔,⅓)      (3,1)
 ```
 
-En $\tau_1$ rien n'est placé. En $\tau_2$ sont placés $\tau_2$ et deux instants
-nouveaux, qui ne sont pas des tops de $p$.
-
-Formellement, les instants nouveaux se notent $\tau \cdot q$, avec $q$ une fraction de
-$[0, 1[$ qui dit à quelle proportion de l'intervalle entre $\tau$ et le top suivant ils
-se trouvent, et $\tau \cdot 0 = \tau$ :
-
-$$p \triangleright r = \{\tau \cdot \tfrac{j}{r(\tau)} \mid \tau \in p,\ 0 \le j < r(\tau)\}$$
+L'échantillon $1$ est supprimé. L'échantillon $2$ est découpé en trois tops, qui
+restent tous à l'intérieur de l'intervalle $[2, 3[$.
 
 ### 1.5 Deux cas remarquables : sélection et subdivision
 
-- Si $r$ ne vaut jamais plus de $1$, la dérivation ne fait que **sauter** des tops.
-  C'est une **sélection** : $p \triangleright r \subseteq p$.
-- Si $r$ vaut toujours au moins $1$, la dérivation ne fait qu'**ajouter** des tops.
-  C'est une **subdivision** : $p \subseteq p \triangleright r$.
+- Si $r$ ne vaut jamais plus de $1$, la dérivation ne fait que **supprimer** des tops.
+  C'est une **sélection**, et $p \triangleright r \subseteq p$ : c'est un sous-ensemble
+  de $p$.
+- Si $r$ vaut toujours au moins $1$, la dérivation ne fait que **découper** des tops.
+  C'est une **subdivision**.
 
-Dans l'exemple ci-dessus, $r$ fait les deux : l'horloge obtenue n'est ni incluse dans
-$p$, ni plus fine que $p$.
+Dans l'exemple ci-dessus, $r$ fait les deux.
 
 ### 1.6 Le raffinement
 
@@ -104,31 +108,32 @@ $p$ par une subdivision, ou par plusieurs subdivisions successives.
 
 Si $c$ raffine $p$, alors :
 
-- $p \subseteq c$ : tous les tops de $p$ sont des tops de $c$ ;
-- $p$ et $c$ ont le même premier top.
+- chaque top de $p$ est exactement recouvert par des tops de $c$ ;
+- toute date où commence un top de $p$ est une date où commence un top de $c$ ;
+- $p$ et $c$ commencent à la même date.
 
-Le raffinement est plus exigeant que l'inclusion. Une sélection est incluse dans son
-parent, mais elle ne le raffine pas, et son parent ne la raffine pas non plus.
+Une sélection ne raffine pas son parent, et son parent ne la raffine pas.
 
-Comme une horloge dérivée a un seul parent, les horloges qu'une horloge $c$ raffine se
-rangent en file, de la plus rare à la plus fine. On note $\mathrm{Ch}(c)$ cette
+Une horloge dérivée a un seul parent. Les horloges qu'une horloge $c$ raffine se
+rangent donc en file, de la moins fine à la plus fine. On note $\mathrm{Ch}(c)$ cette
 **chaîne**, $c$ comprise.
 
 ### 1.7 Une seule horloge primitive
 
-L'horloge des échantillons se dérive de celle des blocs : à chaque début de bloc, elle
-place autant de tops que le bloc compte d'échantillons.
+L'horloge des échantillons se dérive de celle des blocs. Prenons pour cadence la
+longueur du bloc, $\mathit{count}(b_k,\ b_{k+1} - b_k) = b_{k+1} - b_k$ : chaque bloc
+est découpé en tops de durée $1$. Donc
 
 $$\mathbf{S} = \mathbf{B} \triangleright \mathit{count}$$
 
 C'est une subdivision : $\mathbf{S}$ raffine $\mathbf{B}$. Toutes les horloges du
-calcul s'obtiennent donc à partir de la seule horloge $\mathbf{B}$, par dérivation :
+calcul s'obtiennent ainsi à partir de la seule horloge $\mathbf{B}$, par dérivation :
 
 $$K ::= \mathbf{B} \;\mid\; K \triangleright r$$
 
 Deux exemples de chaînes :
 
-- pour $c = \mathbf{S} \triangleright 4$ (quatre tops par échantillon) :
+- pour $c = \mathbf{S} \triangleright 4$ (chaque échantillon découpé en quatre) :
   $\mathrm{Ch}(c) = \{\mathbf{B}, \mathbf{S}, c\}$ ;
 - pour $c = \mathbf{S} \triangleright h$ avec $h \le 1$ (une sélection) :
   $\mathrm{Ch}(c) = \{c\}$.
@@ -137,44 +142,50 @@ Deux exemples de chaînes :
 
 ### 2.1 Valeurs et signaux
 
-Une **valeur** est un nombre. Elle est hors du temps : elle n'a pas d'horloge.
+Une **valeur** est un nombre, un élément de $\mathbb{R}$. Elle est hors du temps.
 
-Un **signal** a une horloge, et une valeur à chacun des tops de cette horloge. Un
-signal d'horloge $H$ est une fonction $H \to \mathbb{R}$. Entre deux tops, il n'est
-pas défini.
+Un **signal** d'horloge $H$ est une fonction $x : H \to \mathbb{R}$ : il a une valeur
+$x(\tau)$ à chaque top $\tau$ de son horloge, et il n'est défini nulle part ailleurs.
 
 Les entrées audio sont des signaux d'horloge $\mathbf{S}$, les sliders des signaux
 d'horloge $\mathbf{B}$.
 
-### 2.2 Lire un signal à un instant quelconque
+### 2.2 Lire un signal à une date quelconque
 
-On a souvent besoin de la valeur d'un signal à un instant qui n'est pas l'un de ses
-tops. On prend alors sa valeur au dernier top passé.
+On a souvent besoin de la valeur d'un signal à une date où aucun de ses tops ne
+commence. On prend alors sa valeur au dernier top commencé.
 
-La valeur d'un signal $x$ d'horloge $H$, **lue** à un instant $t$ :
+La valeur d'un signal $x$ d'horloge $H$, **lue** à la date $t \in \mathbb{Q}^+$ :
 
-$$x\lfloor t \rfloor = x(\max\{u \in H \mid u \le t\}) \qquad \text{et } 0 \text{ s'il n'y a pas encore eu de top}$$
+$$x\lfloor t \rfloor = \begin{cases}
+x(d, \delta) & \text{où } (d, \delta) \text{ est le top de } H \text{ de plus grande date } d \le t \\
+0 & \text{si aucun top de } H \text{ n'a commencé à la date } t
+\end{cases}$$
 
-Le « $\le$ » admet la lecture au top même.
+Seule la date des tops compte pour la lecture, pas leur durée : la valeur est
+maintenue jusqu'au top suivant, même s'il est lointain.
 
 ### 2.3 Quand la lecture est sans perte
 
-Lire un signal sur une horloge qui **contient** la sienne ne perd rien : on y retrouve
-toutes ses valeurs, chacune maintenue jusqu'à la suivante. C'est le cas d'un slider lu
-à chaque échantillon.
+Soit $x$ un signal d'horloge $H$, lu à chaque top d'une horloge $H'$.
 
-Lire un signal sur une horloge qui ne contient pas la sienne peut en perdre : les
-valeurs prises entre deux tops du lecteur ne sont jamais vues.
+- Si toute date où commence un top de $H$ est une date où commence un top de $H'$, la
+  lecture ne perd rien : chaque valeur de $x$ est vue, et maintenue jusqu'à la
+  suivante. C'est le cas quand $H'$ raffine $H$ (un slider lu à chaque échantillon), et
+  aussi quand $H$ est une sélection de $H'$.
+- Sinon elle peut en perdre : une valeur de $x$ remplacée avant le top suivant de $H'$
+  n'est jamais vue.
 
-**Cohérence.** Si $H \subseteq H'$, lire un signal d'horloge $H$ directement, ou le
-lire d'abord sur $H'$ puis relire le résultat, donne la même chose.
+**Cohérence.** Dans le premier cas, lire $x$ directement à une date, ou lire d'abord
+$x$ sur $H'$ puis relire le résultat à cette date, donne la même chose.
 
 ### 2.4 La cadence est un signal
 
-En 1.4 la cadence était une fonction quelconque. Dans un programme, c'est un signal :
-la cadence $r$ de $p \triangleright r$ est un signal entier, positif ou nul, d'horloge
-$p$. L'horloge et les signaux dépendent donc l'un de l'autre : un signal a une horloge,
-et une horloge dérivée est construite avec un signal.
+En 1.4 la cadence était une fonction quelconque de $p$ dans $\mathbb{N}$. C'est
+exactement ce qu'est un signal entier d'horloge $p$. Dans un programme, la cadence de
+$p \triangleright r$ est un tel signal. Les deux notions dépendent donc l'une de
+l'autre : un signal a une horloge, et une horloge dérivée est construite avec un
+signal.
 
 **[D] Égalité.** Deux horloges dérivées sont égales quand elles ont le même parent et
 le même signal de cadence, comparé par identité d'arbre après mise en forme normale.
@@ -194,10 +205,10 @@ propagation.
 
 ### 2.6 Le temps différé
 
-Le remplissage d'une table est le calcul d'un signal sur une horloge finie
-$\mathbf{D}_n$, dont les $n$ tops précèdent tous l'échantillon $0$. C'est une seconde
-horloge primitive. La table collecte les $n$ valeurs ; pour le temps réel c'est une
-valeur.
+Le remplissage d'une table de taille $n$ est le calcul d'un signal sur une horloge
+finie de $n$ tops, placés avant la date $0$ : c'est la seule horloge dont les dates
+sont négatives, et une seconde horloge primitive. La table collecte les $n$ valeurs ;
+pour le temps réel c'est une valeur.
 
 Le temps-programme (compilation, initialisation, exécution) n'est pas une horloge de
 signal : c'est la calculabilité, l'autre axe de `ATTRIBUTES.md`.
@@ -225,12 +236,12 @@ effet, son état ne compte pas le temps. **[D]**
 
 ### 3.2 `On` : voir un signal d'une autre horloge
 
-$\mathtt{On}(k, x)$ est le signal d'horloge $k$ qui vaut $x\lfloor t \rfloor$ à chaque
-top $t$ de $k$. Appliqué à une valeur $v$, c'est le signal d'horloge $k$ qui vaut $v$ à
-chaque top.
+$\mathtt{On}(k, x)$ est le signal d'horloge $k$ dont la valeur, à chaque top de $k$,
+est $x$ lu à la date de ce top : $\mathtt{On}(k, x)(d, \delta) = x\lfloor d \rfloor$.
+Appliqué à une valeur $v$, c'est le signal d'horloge $k$ qui vaut $v$ à chaque top.
 
-Selon les horloges, `On` échantillonne (vers une horloge plus rare), maintient (vers
-une horloge qui contient celle de $x$), ou les deux.
+Selon les horloges, `On` échantillonne (quand $k$ est une sélection de l'horloge de
+$x$), maintient (quand $k$ la raffine), ou les deux.
 
 ### 3.3 Règles d'horloge
 
@@ -273,12 +284,15 @@ certification. Une violation est un défaut du compilateur.
 
 Pour les attributs de valeur (nature, booléanité, intervalle), `On(k, x)` porte $x$ :
 
-- quand $k$ est incluse dans l'horloge de $x$ (échantillonnage pur) : la valeur de $x$ ;
-- sinon : la valeur de $x$ **unie à** $0$, la lecture avant le premier top.
+- quand aucun top de $k$ ne peut précéder le premier top de $x$ : la valeur de $x$.
+  C'est le cas si $k$ est une sélection de l'horloge de $x$, si elle la raffine, ou si
+  elle est raffinée par elle ;
+- sinon : la valeur de $x$ **unie à** $0$, ce que rend la lecture tant que $x$ n'a pas
+  commencé.
 
 Le maintien porte l'union avec la valeur initiale, exactement comme le retard dans
 `FIXPOINT-SPEC.md` ($Y@n = Y \sqcup \alpha(0)$). Le raffinement, lui, n'ajoute jamais
-de $0$ : une horloge et celles qui la raffinent ont le même premier top.
+de $0$ : une horloge et celles qui la raffinent commencent à la même date.
 
 Conséquence à garder en tête : une valeur sortie d'un `ondemand` a $0$ dans son
 intervalle, ce qui pèse sur la certification d'un retard ou d'un index qui en dépend.
@@ -301,7 +315,7 @@ signal dont l'horloge est raffinée par $k$.
 
 | | `ondemand`, `downsampling` | `upsampling` |
 |---|---|---|
-| entrée `On(c, x)` | reste : échantillonnage | s'efface : $p \le c$, maintien sur les sous-instants |
+| entrée `On(c, x)` | reste : échantillonnage | s'efface : $p \le c$, maintien sur les tops issus du même top parent |
 | sortie `On(c, y)` | s'efface si $y$ est un signal | s'efface si $y$ est un signal |
 | sortie `On(p, …)` | reste : maintien entre deux demandes | reste : premier sous-échantillon |
 
@@ -313,11 +327,11 @@ directement.
 
 1. **Effacement** : $\mathtt{On}(k, x) = x$ si $x$ est un signal d'horloge $k' \le k$.
 2. **Absorption** : $\mathtt{On}(k, \mathtt{On}(k', x)) = \mathtt{On}(k, x)$ si
-   $k \subseteq k'$.
+   $k$ est une sélection de $k'$, ou si $k'$ raffine $k$.
 3. **Distribution** : $\mathtt{On}(k, \star(x_1, x_2)) = \star(\mathtt{On}(k, x_1), \mathtt{On}(k, x_2))$.
 4. **Retards** : $\mathtt{Delay}(k, \mathtt{Delay}(k, x, a), b) = \mathtt{Delay}(k, x, a+b)$,
    à horloge égale seulement.
-5. **Retard vu d'une sélection** : pour $c \subseteq p$ et $x$ d'horloge $c$,
+5. **Retard vu d'une sélection** : pour $c$ sélection de $p$ et $x$ d'horloge $c$,
    $\mathtt{On}(c, \mathtt{Mem}(p, \mathtt{On}(p, x))) = \mathtt{Mem}(c, x)$.
 6. **Composition** : $(p \triangleright h_1) \triangleright h_0 = p \triangleright (h_1 \cdot h_0)$
    pour des cadences booléennes. C'est $h_0 \otimes h_1$ de la spec v5.
@@ -435,7 +449,7 @@ où il émet le calcul.
   vieillit quand même. La règle `isConditionBoundary` de la branche en devient une
   conséquence.
 - Une opération sans mémoire peut s'exécuter sur toute horloge qui contient les
-  instants où elle est lue (loi de cohérence). Vers une horloge plus rare, c'est
+  dates où elle est lue (loi de cohérence). Vers une horloge plus rare, c'est
   l'appel par nécessité ; vers une horloge moins fine, la sortie des invariants de
   boucle.
 
@@ -465,7 +479,7 @@ $\mathbf{B}$ donne `kBlock`, $\mathbf{S}$ et toute horloge dérivée donnent `kS
 
 **Prises**
 
-- Convention « début » pour les sous-instants.
+- Un top découpé commence à la date de son parent, et ses parts restent dans sa durée.
 - Égalité structurelle des horloges.
 - La sortie d'une région est un signal de l'horloge parente.
 - Maintien en entrée d'`upsampling` ; un bourrage de zéros s'écrit dans la région.
