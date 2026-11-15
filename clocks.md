@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v32
+subtitle: Spécification, brouillon v33
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -9,7 +9,6 @@ language: fr
 ::: toc+
 - **Objet et statut** — dire ce que le document spécifie et où en est le travail.
 - **Les repères temporels** — construire le temps sur ℕ, sans parler de signaux.
-  - **Le temps d'une horloge** — une succession d'instants numérotés.
   - **Parent et cadence** — ce qu'on peut demander à une horloge.
   - **Le repère du haut** — l'horloge qui est son propre parent, de cadence 1.
   - **La remontée** — passer du temps d'une horloge à celui de son parent.
@@ -75,7 +74,7 @@ Dans la version monorate de Faust, la question du temps ne se pose pas : tous le
 
 Avec `ondemand`, `upsampling` et `downsampling`, ce n'est plus vrai. Un calcul peut n'être fait qu'à certains échantillons, quand on le demande, ou au contraire plusieurs fois pendant le même échantillon. Il faut donc un moyen de dire à quels instants un calcul est fait. C'est le rôle de l'**horloge**.
 
-Une horloge est un **repère temporel**. À l'intérieur d'un repère, le temps reste aussi simple qu'en monorate : c'est une suite d'instants, numérotés 0, 1, 2, etc. Ce qui est nouveau, c'est qu'il y a plusieurs repères, et qu'il faut pouvoir passer de l'un à l'autre.
+Une horloge est un **repère temporel**. À l'intérieur d'un repère, le temps reste aussi simple qu'en monorate : c'est une suite d'**instants**, numérotés 0, 1, 2, etc. Mais chaque repère a son propre temps : l'instant 5 de l'un et l'instant 5 d'un autre n'ont a priori aucun rapport. Ce qui est nouveau, c'est donc qu'il y a plusieurs repères, et qu'il faut pouvoir passer de l'un à l'autre.
 
 Les repères ne sont pas indépendants : ils s'emboîtent. Une zone de calcul, le corps d'un `ondemand` par exemple, a son propre repère. Ce repère est lui-même placé dans celui du programme qui l'entoure, qui peut à son tour être placé dans un autre, et ainsi de suite. Les repères forment une **hiérarchie**, où chacun a un parent. Au sommet se trouve un repère unique, qui contient tous les autres.
 
@@ -83,20 +82,12 @@ On passe toujours d'un repère à son parent. Il suffit pour cela de savoir comb
 
 Ce chapitre construit ces repères sur ℕ, sans signaux : ils n'arrivent qu'au chapitre suivant. Seule sa dernière section, « Les étapes du programme », anticipe en nommant ce qui occupe les étapes : les tables et les blocs.
 
-## Le temps d'une horloge
-
-::: definition [Instant]
-Le temps d'une horloge est ℕ, ou un début de ℕ quand elle n'a qu'un nombre fini d'instants. Un **instant** est un entier : 0 est le premier instant, 1 le deuxième, etc.
-:::
-
-Chaque horloge a son propre temps. L'instant 5 d'une horloge et l'instant 5 d'une autre n'ont a priori aucun rapport : pour les relier, il faut passer par la hiérarchie.
-
 ## Parent et cadence
 
-Une horloge n'est pas définie par ce qu'elle contient, mais par ce qu'on peut en demander. On peut lui demander deux choses.
+Une horloge est donnée par deux choses : le repère dans lequel elle est placée, et le nombre de ses instants qui ont lieu pendant chaque instant de celui-ci.
 
 ::: definition [Horloge]
-Toute **horloge** c a :
+Le temps d'une **horloge** est ℕ : ses instants sont les entiers 0, 1, 2, etc. Toute horloge c a :
 
 - un **parent**, parent(c), qui est une horloge ;
 - une **cadence**, cadence(c), qui est une fonction de ℕ dans ℕ sur le temps de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c).
