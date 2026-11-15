@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v40
+subtitle: Spécification, brouillon v41
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -13,8 +13,8 @@ language: fr
   - **L'horloge racine** — l'horloge qui est son propre parent, de cadence 1.
   - **La remontée** — convertir le temps du parent en temps de l'enfant, et inversement.
   - **Sélection et subdivision** — les deux cas remarquables.
-  - **Les ancêtres** — la chaîne d'une horloge, et le treillis.
   - **Les étapes du programme** — les tables, puis les blocs.
+  - **Les ancêtres** — la chaîne d'une horloge, et le treillis.
 - **Les signaux** — poser les valeurs sur les repères.
   - **Un signal et son horloge** — une valeur par instant.
   - **Voir un signal depuis un repère descendant** — composer avec la remontée.
@@ -80,7 +80,7 @@ Les repères ne sont pas indépendants : ils s'emboîtent. Une zone de calcul, l
 
 On passe toujours d'un repère à son parent. Il suffit pour cela de savoir combien d'instants du repère ont lieu pendant chaque instant du parent : un seul ou aucun pour un `ondemand`, plusieurs pour un `upsampling`. On en déduit, pour chaque instant du repère, l'instant du parent pendant lequel il a lieu. De proche en proche, on remonte ainsi de n'importe quel repère jusqu'à ceux qui le contiennent.
 
-Ce chapitre construit ces repères sur ℕ, sans signaux : ils n'arrivent qu'au chapitre suivant. Seule sa dernière section, « Les étapes du programme », anticipe en nommant ce qui occupe les étapes : les tables et les blocs.
+Ce chapitre construit ces repères sur ℕ, sans signaux : ils n'arrivent qu'au chapitre suivant. Seule la section « Les étapes du programme » anticipe en nommant ce qui occupe les étapes : les tables et les blocs.
 
 ## Parent et cadence
 
@@ -187,6 +187,30 @@ Dans l'exemple ci-dessus, la cadence n'est ni l'une ni l'autre. Celle de l'horlo
 
 Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et une remontée identité. Elle n'est pas égale à p pour autant, sauf si p est l'horloge racine : son parent est p, alors que celui de p est parent(p).
 
+## Les étapes du programme
+
+Le temps de l'horloge racine est la suite des **étapes** du programme : d'abord une étape par table à remplir, puis une étape par bloc. **[D]**
+
+Avec trois tables :
+
+```
+⊤     t :   0          1          2          3        4        5   …
+            table 0    table 1    table 2    bloc 0   bloc 1   bloc 2
+```
+
+Les horloges de profondeur 1 sont les **repères de base** :
+
+| Repère de base | Sa cadence | Son temps |
+| :--- | :--- | :--- |
+| table i, de taille nᵢ | nᵢ pendant l'étape de la table, 0 ailleurs | nᵢ instants |
+| échantillons **S** | 0 pendant les étapes des tables, puis la longueur de chaque bloc | infini |
+
+Le premier échantillon n'a donc pas lieu pendant une étape d'initialisation : il a lieu pendant l'étape du premier bloc.
+
+Sous chaque repère de base, on construit des **régions** par les mêmes dérivations : ce sont les horloges dérivées d'un repère de base ou d'une autre région, celles que créent `ondemand`, `upsampling` et `downsampling`. Le calcul ne distingue pas l'initialisation de l'exécution : seule change l'étape qui héberge le repère de base.
+
+**[D]** Aucune opération qui compte le temps, ce que l'on appellera plus loin une opération à horloge, n'est écrite sur l'horloge racine. `process` est traduit dans le repère des échantillons, chaque générateur dans le repère de sa table. L'horloge racine ne porte que des signaux qui ne comptent pas le temps : les constantes, les sliders, les cadences des repères de base, les tables une fois remplies, et ce que l'on en calcule sans mémoire.
+
 ## Les ancêtres
 
 Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi de suite jusqu'à ⊤. **[D]** On note c ≤ a quand a est un ancêtre de c : c est construite sur a, et chacun de ses instants a lieu pendant un instant de a. Les ancêtres d'une horloge forment une chaîne, d'elle jusqu'à l'horloge racine.
@@ -224,7 +248,7 @@ flowchart TD
   B --> X
 ```
 
-Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand` ; la section suivante dit ce que sont T₁, T₂ et **S**.
+Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`. T₁ et T₂ sont les repères de ses tables, **S** celui des échantillons.
 
 Les blocs n'y sont pas une horloge à part : ce sont des instants de l'horloge racine, dont le temps est fait d'une étape par table, puis d'une étape par bloc. L'horloge **S** subdivise chaque bloc en ses échantillons.
 
@@ -236,30 +260,6 @@ Quelques exemples lus sur ce dessin :
 | ⊤ et T₂ | T₂ ≤ ⊤ | ⊤ | T₂ |
 | **S** · h et **S** · 4 | incompatibles | **S** | ⊥ |
 | T₁ et **S** · h · 2 | incompatibles | ⊤ | ⊥ |
-
-## Les étapes du programme
-
-Le temps de l'horloge racine est la suite des **étapes** du programme : d'abord une étape par table à remplir, puis une étape par bloc. **[D]**
-
-Avec trois tables :
-
-```
-⊤     t :   0          1          2          3        4        5   …
-            table 0    table 1    table 2    bloc 0   bloc 1   bloc 2
-```
-
-Les horloges de profondeur 1 sont les **repères de base** :
-
-| Repère de base | Sa cadence | Son temps |
-| :--- | :--- | :--- |
-| table i, de taille nᵢ | nᵢ pendant l'étape de la table, 0 ailleurs | nᵢ instants |
-| échantillons **S** | 0 pendant les étapes des tables, puis la longueur de chaque bloc | infini |
-
-Le premier échantillon n'a donc pas lieu pendant une étape d'initialisation : il a lieu pendant l'étape du premier bloc.
-
-Sous chaque repère de base, on construit des **régions** par les mêmes dérivations : ce sont les horloges dérivées d'un repère de base ou d'une autre région, celles que créent `ondemand`, `upsampling` et `downsampling`. Le calcul ne distingue pas l'initialisation de l'exécution : seule change l'étape qui héberge le repère de base.
-
-**[D]** Aucune opération qui compte le temps, ce que l'on appellera plus loin une opération à horloge, n'est écrite sur l'horloge racine. `process` est traduit dans le repère des échantillons, chaque générateur dans le repère de sa table. L'horloge racine ne porte que des signaux qui ne comptent pas le temps : les constantes, les sliders, les cadences des repères de base, les tables une fois remplies, et ce que l'on en calcule sans mémoire.
 
 # Les signaux
 
