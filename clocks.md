@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v38
+subtitle: Spécification, brouillon v39
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -193,7 +193,45 @@ Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi
 
 Pour remonter d'une horloge c à l'un de ses ancêtres a, on compose les remontées successives. On note π(c → a) cette remontée composée ; π(c → c) est l'identité.
 
-Deux horloges quelconques ont toujours un plus proche ancêtre commun, puisque ⊤ est l'ancêtre de toutes. Si aucune n'est l'ancêtre de l'autre, elles sont **incompatibles** : leurs signaux ne se rencontrent qu'après être sortis jusqu'à cet ancêtre commun. Pour l'ordre ≤, l'horloge racine est le plus petit élément. Avec un élément « incompatible » ajouté au-dessus de tous les autres, les horloges forment un treillis. La borne supérieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est « incompatible ».
+Deux horloges quelconques ont toujours un plus proche ancêtre commun, puisque ⊤ est l'ancêtre de toutes. Si aucune n'est l'ancêtre de l'autre, elles sont **incompatibles** : leurs signaux ne se rencontrent qu'après être sortis jusqu'à cet ancêtre commun.
+
+Pour l'ordre ≤, l'horloge racine est le plus petit élément. Avec un élément « incompatible » ajouté au-dessus de tous les autres, les horloges forment un **treillis** :
+
+- la borne inférieure de deux horloges est leur plus proche ancêtre commun ;
+- la borne supérieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est « incompatible ».
+
+```mermaid "Le treillis des horloges d'un programme" \label{fig:treillis}
+flowchart TD
+  R["⊤<br>l'horloge racine"]
+  T1["T₁<br>une table"]
+  T2["T₂<br>une autre table"]
+  S["S<br>les échantillons"]
+  A["S · h<br>un ondemand"]
+  B["S · 4<br>un upsampling"]
+  C["S · h · 2<br>un upsampling dans l'ondemand"]
+  X["incompatible"]
+  R --> T1
+  R --> T2
+  R --> S
+  S --> A
+  S --> B
+  A --> C
+  T1 --> X
+  T2 --> X
+  C --> X
+  B --> X
+```
+
+Le dessin place la racine en haut, comme pour un arbre : l'ordre ≤ s'y lit de haut en bas, et « incompatible », le plus grand élément, est en bas. Chaque flèche va d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand` ; la section suivante dit ce que sont T₁, T₂ et **S**.
+
+Quelques exemples lus sur ce dessin :
+
+| Horloges | Relation | Borne inférieure | Borne supérieure |
+| :--- | :--- | :--- | :--- |
+| **S** et **S** · h · 2 | **S** ≤ **S** · h · 2 | **S** | **S** · h · 2 |
+| ⊤ et T₂ | ⊤ ≤ T₂ | ⊤ | T₂ |
+| **S** · h et **S** · 4 | incompatibles | **S** | incompatible |
+| T₁ et **S** · h · 2 | incompatibles | ⊤ | incompatible |
 
 ## Les étapes du programme
 
