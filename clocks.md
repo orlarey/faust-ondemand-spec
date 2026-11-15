@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v35
+subtitle: Spécification, brouillon v36
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -11,7 +11,7 @@ language: fr
 - **Les repères temporels** — construire le temps sur ℕ, sans parler de signaux.
   - **Parent et cadence** — ce qu'on peut demander à une horloge.
   - **L'horloge racine** — l'horloge qui est son propre parent, de cadence 1.
-  - **La remontée** — passer du temps d'une horloge à celui de son parent.
+  - **La remontée** — convertir le temps du parent en temps de l'enfant, et inversement.
   - **Sélection et subdivision** — les deux cas remarquables.
   - **Les ancêtres** — la chaîne d'une horloge, et le treillis.
   - **Les étapes du programme** — les tables, puis les blocs.
@@ -125,13 +125,17 @@ Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeu
 
 ## La remontée
 
-La cadence dit combien d'instants ont lieu pendant chaque instant du parent. On en tire la fonction qui fait passer du temps d'une horloge au temps de son parent.
+La cadence d'une horloge dit combien d'instants ont lieu pendant chaque instant de son parent.
 
-Soit c une horloge, p son parent et r sa cadence. Le nombre d'instants de c qui ont eu lieu à la fin de l'instant t de p est
+Il est donc facile de convertir le temps du parent en temps de l'enfant : il suffit d'additionner. Soit c une horloge, p son parent et r sa cadence. À la fin de l'instant t de p, le nombre d'instants de c qui ont eu lieu est
 
 ```math
 \mathit{fait}(t) = r(0) + r(1) + … + r(t)
 ```
+
+Le dernier instant de c qui a eu lieu est alors l'instant fait(t) − 1.
+
+Avec cette fonction, on trouve la conversion inverse : à quel instant du parent correspond un instant de l'enfant.
 
 ::: definition [Remontée]
 La **remontée** π de c associe à chaque instant n de c l'instant de son parent pendant lequel il a lieu : π(n) est le plus petit t tel que fait(t) > n.
