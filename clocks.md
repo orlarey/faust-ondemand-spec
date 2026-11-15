@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v41
+subtitle: Spécification, brouillon v42
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -191,19 +191,28 @@ Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et un
 
 Le temps de l'horloge racine est la suite des **étapes** du programme : d'abord une étape par table à remplir, puis une étape par bloc. **[D]**
 
-Avec trois tables :
+Prenons un programme qui a deux tables. La première à être calculée, T₁, a N valeurs. La seconde, T₂, en a M, et doit être calculée après la première. Viennent ensuite les blocs : chaque appel de la méthode `compute` en traite un, de taille B₀, puis B₁, etc.
 
 ```
-⊤     t :   0          1          2          3        4        5   …
-            table 0    table 1    table 2    bloc 0   bloc 1   bloc 2
+étape t de l'horloge racine :   0     1     2     3     4    …
+ce que l'on y calcule       :   T₁    T₂    bloc  bloc  bloc
+cadence de T₁               :   N     0     0     0     0    …
+cadence de T₂               :   0     M     0     0     0    …
+cadence de S                :   0     0     B₀    B₁    B₂   …
 ```
 
-Les horloges de profondeur 1 sont les **repères de base** :
+Ces trois horloges ont l'horloge racine pour parent, et ne diffèrent que par leur cadence :
+
+- celle de T₁ a pour cadence N, puis 0 indéfiniment : ses N instants ont tous lieu pendant l'étape 0 ;
+- celle de T₂ a pour cadence 0, puis M, puis 0 indéfiniment : ses M instants ont tous lieu pendant l'étape 1, quand T₁ est remplie ;
+- celle des échantillons, **S**, a pour cadence 0, 0, B₀, B₁, etc. Pendant les étapes des tables elle n'a pas commencé, et son temps vaut −1 ; elle a ensuite, pendant chaque étape, autant d'instants que le bloc a d'échantillons.
+
+Ces horloges de profondeur 1 sont les **repères de base** :
 
 | Repère de base | Sa cadence | Son temps |
 | :--- | :--- | :--- |
-| table i, de taille nᵢ | nᵢ pendant l'étape de la table, 0 ailleurs | nᵢ instants |
-| échantillons **S** | 0 pendant les étapes des tables, puis la longueur de chaque bloc | infini |
+| une table de taille n | n pendant l'étape de la table, 0 ailleurs | n instants |
+| les échantillons, **S** | 0 pendant les étapes des tables, puis la taille de chaque bloc | infini |
 
 Le premier échantillon n'a donc pas lieu pendant une étape d'initialisation : il a lieu pendant l'étape du premier bloc.
 
