@@ -204,10 +204,10 @@ L'horloge vide n'est l'horloge d'aucun signal : un calcul dont les arguments n'o
 
 ```mermaid "Le treillis des horloges d'un programme" \label{fig:treillis}
 flowchart TD
-  R["⊤<br>l'horloge racine"]
-  T1["T₁<br>une table"]
-  T2["T₂<br>une autre table"]
-  S["S<br>les échantillons"]
+  R["⊤<br>l'horloge racine<br>une étape par table, puis une par bloc"]
+  T1["T₁<br>les instants d'une table"]
+  T2["T₂<br>les instants d'une autre table"]
+  S["S<br>les échantillons de chaque bloc"]
   A["S · h<br>un ondemand"]
   B["S · 4<br>un upsampling"]
   C["S · h · 2<br>un upsampling dans l'ondemand"]
@@ -225,6 +225,8 @@ flowchart TD
 ```
 
 Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand` ; la section suivante dit ce que sont T₁, T₂ et **S**.
+
+Les blocs n'y sont pas une horloge à part : ce sont des instants de l'horloge racine, dont le temps est fait d'une étape par table, puis d'une étape par bloc. L'horloge **S** subdivise chaque bloc en ses échantillons.
 
 Quelques exemples lus sur ce dessin :
 
