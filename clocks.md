@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v33
+subtitle: Spécification, brouillon v34
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -105,6 +105,8 @@ Toute horloge s'écrit ainsi : c = parent(c) · cadence(c).
 
 ## Le repère du haut
 
+Toute horloge est construite sur une autre, son parent. Il en faut donc une première pour amorcer le système : une horloge sur laquelle toutes les autres sont construites. Pour que la définition précédente s'applique aussi à elle, sans cas particulier, on en fait son propre parent.
+
 ::: definition [Repère du haut]
 Le **repère du haut**, noté ⊤, est l'horloge qui est son propre parent et dont la cadence vaut 1 à chaque instant :
 
@@ -115,7 +117,9 @@ Le **repère du haut**, noté ⊤, est l'horloge qui est son propre parent et do
 Toute horloge atteint ⊤ en un nombre fini de passages au parent.
 :::
 
-C'est la seule horloge qui n'est pas construite à partir d'une autre : elle amorce toutes les autres. Son temps est donné, et c'est l'hôte qui le fait avancer.
+La fonction parent est ainsi définie partout, et le repère du haut en est le seul point fixe. C'est la convention de la racine d'un système de fichiers, qui est son propre répertoire parent.
+
+Son temps n'est pas déduit d'un autre : il est donné, et c'est l'hôte qui le fait avancer.
 
 Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur k s'écrit ⊤ · r₁ · r₂ · … · rₖ : elle est déterminée par la suite de ses cadences.
 
