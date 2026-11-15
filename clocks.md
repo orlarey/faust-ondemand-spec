@@ -661,7 +661,7 @@ Deux conditions accompagnent la sérialisation :
 - le sens du programme ne dépend pas de l'ordre choisi entre deux tables indépendantes, puisqu'elles ne se lisent pas ;
 - l'ordre est fixé par une règle, pour que le compilateur reste déterministe : une table reçoit son étape quand la propagation de son générateur s'achève.
 
-Le compilateur actuel ne procède pas ainsi : il compile une table dans le conteneur du générateur qui la lit. Sur `master-dev-certification-4`, une table dont le générateur lit une autre table est mal compilée (constaté le 14 novembre : en `cpp` la table lue n'est jamais remplie, en `ocpp` l'édition de liens du code émis échoue). Un même générateur pour deux tables de tailles différentes est en revanche correct : une classe par générateur, une instance par table.
+Le compilateur actuel ne procède pas ainsi : il compile une table dans le conteneur du générateur qui la lit. Une table dont le générateur lit une autre table n'a de ce fait jamais été compilée correctement : le défaut n'est pas propre à la branche de certification, il existe depuis toujours. Il a été constaté le 14 novembre sur `master-dev-certification-4` : en `cpp` la table lue n'est jamais remplie, en `ocpp` l'édition de liens du code émis échoue. Une correction est en cours sur une branche à part ; elle range les tables au niveau du programme, comme cette section le demande. Un même générateur pour deux tables de tailles différentes est en revanche correct : une classe par générateur, une instance par table.
 
 ## Un slider dans un générateur
 
