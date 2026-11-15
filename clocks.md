@@ -77,6 +77,10 @@ Avec `ondemand`, `upsampling` et `downsampling`, ce n'est plus vrai. Un calcul p
 
 Une horloge est un **repère temporel**. À l'intérieur d'un repère, le temps reste aussi simple qu'en monorate : c'est une suite d'instants, numérotés 0, 1, 2, etc. Ce qui est nouveau, c'est qu'il y a plusieurs repères, et qu'il faut pouvoir passer de l'un à l'autre.
 
+Les repères ne sont pas indépendants : ils s'emboîtent. Une zone de calcul, le corps d'un `ondemand` par exemple, a son propre repère. Ce repère est lui-même placé dans celui du programme qui l'entoure, qui peut à son tour être placé dans un autre, et ainsi de suite. Les repères forment une **hiérarchie**, où chacun a un parent. Au sommet se trouve un repère unique, qui contient tous les autres.
+
+On passe toujours d'un repère à son parent. Il suffit pour cela de savoir combien d'instants du repère ont lieu pendant chaque instant du parent : un seul ou aucun pour un `ondemand`, plusieurs pour un `upsampling`. On en déduit, pour chaque instant du repère, l'instant du parent pendant lequel il a lieu. De proche en proche, on remonte ainsi de n'importe quel repère jusqu'à ceux qui le contiennent.
+
 Ce chapitre construit ces repères sur ℕ, sans signaux : ils n'arrivent qu'au chapitre suivant. Seule sa dernière section, « Les étapes du programme », anticipe en nommant ce qui occupe les étapes : les tables et les blocs.
 
 ## Le temps d'une horloge
