@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v36
+subtitle: Spécification, brouillon v37
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -133,7 +133,7 @@ Il est donc facile de convertir le temps du parent en temps de l'enfant : il suf
 \mathit{fait}(t) = r(0) + r(1) + … + r(t)
 ```
 
-Le dernier instant de c qui a eu lieu est alors l'instant fait(t) − 1.
+Le dernier instant de c qui a eu lieu est alors l'instant fait(t) − 1. Si fait(t) vaut 0, aucun instant de c n'a encore eu lieu.
 
 Avec cette fonction, on trouve la conversion inverse : à quel instant du parent correspond un instant de l'enfant.
 
@@ -143,7 +143,7 @@ La **remontée** π de c associe à chaque instant n de c l'instant de son paren
 
 La remontée est croissante. La cadence et la remontée disent la même chose : r(t) est le nombre d'instants n tels que π(n) = t.
 
-Un exemple, avec la cadence 1, 0, 3, 1 :
+Un premier exemple, avec la cadence 1, 0, 3, 1 :
 
 ```
 instant du parent   t   :   0     1     2           3
@@ -154,6 +154,18 @@ remontée          π(n)  :   0           2  2  2     3
 ```
 
 Pendant l'instant 1 du parent il ne se passe rien. Pendant l'instant 2 ont lieu trois instants de l'horloge.
+
+Un second exemple, où la cadence commence par 0 :
+
+```
+instant du parent   t   :   0     1     2     3
+cadence           r(t)  :   0     0     1     2
+fait(t)                 :   0     0     1     3
+instants de l'horloge n :               0     1  2
+remontée          π(n)  :               2     3  3
+```
+
+Pendant les deux premiers instants du parent, l'horloge n'a encore aucun instant : fait(t) vaut 0, et il n'y a pas de dernier instant. Son instant 0 a lieu pendant l'instant 2 du parent : rien n'oblige une horloge à commencer en même temps que son parent. C'est le cas d'un `ondemand` qui n'a pas encore reçu de demande.
 
 Pour l'horloge racine, la cadence vaut 1 partout : fait(t) = t + 1, et la remontée est l'identité. La définition générale s'applique donc aussi à ⊤, sans cas particulier.
 
