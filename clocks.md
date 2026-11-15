@@ -45,7 +45,7 @@ La section « Les étapes du programme » dit quelles horloges a un programme Fa
 
 # Parent et cadence
 
-Une horloge est donnée par deux choses : le repère dans lequel elle est placée : son horloge parente, et le nombre de ses instants qui ont lieu pendant chaque instant de celle-ci : sa cadence.
+Une horloge est donnée par deux choses : le repère dans lequel elle est placée, qui est son horloge parente, et le nombre de ses instants qui ont lieu pendant chaque instant de celle-ci, qui est sa cadence.
 
 ::: definition [Horloge]
 Le temps d'une **horloge** est ℤ, comme le temps de Faust : ses instants sont les entiers. Elle commence à l'instant 0. Ses instants positifs ou nuls sont ceux où elle tourne ; ses instants négatifs sont ceux d'avant son démarrage, où il ne se passe rien. **[D]**
