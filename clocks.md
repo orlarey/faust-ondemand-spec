@@ -84,7 +84,7 @@ Ce chapitre construit ces repères sur ℕ, sans signaux : ils n'arrivent qu'au 
 
 ## Parent et cadence
 
-Une horloge est donnée par deux choses : le repère dans lequel elle est placée, et le nombre de ses instants qui ont lieu pendant chaque instant de celui-ci.
+Une horloge est donnée par deux choses : le repère dans lequel elle est placée : son horloge parente, et le nombre de ses instants qui ont lieu pendant chaque instant de celle-ci : sa cadence.
 
 ::: definition [Horloge]
 Le temps d'une **horloge** est ℕ : ses instants sont les entiers 0, 1, 2, etc. Toute horloge c a :
