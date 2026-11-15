@@ -1,6 +1,6 @@
 ---
 title: Les horloges de Faust
-subtitle: Spécification, brouillon v43
+subtitle: Spécification, brouillon v44
 date: 15 novembre 2026
 document-style: article-a4
 language: fr
@@ -39,21 +39,21 @@ Une horloge est un **repère temporel**. À l'intérieur d'un repère, le temps 
 
 Les repères ne sont pas indépendants : ils s'emboîtent. Une zone de calcul, le corps d'un `ondemand` par exemple, a son propre repère. Ce repère est lui-même placé dans celui du programme qui l'entoure, qui peut à son tour être placé dans un autre, et ainsi de suite. Les repères forment une **hiérarchie**, où chacun a un parent. À sa racine se trouve un repère unique, sur lequel tous les autres sont construits.
 
-On passe toujours d'un repère à son parent. Il suffit pour cela de savoir combien d'instants du repère ont lieu pendant chaque instant du parent : un seul ou aucun pour un `ondemand`, plusieurs pour un `upsampling`. On en déduit, pour chaque instant du repère, l'instant du parent pendant lequel il a lieu. De proche en proche, on remonte ainsi de n'importe quel repère jusqu'à ceux qui le contiennent.
+On passe toujours d'un repère à son parent. Il suffit pour cela de savoir combien d'instants du repère ont lieu pendant chaque instant du parent : un seul ou aucun pour un `ondemand` ou un `downsampling`, plusieurs pour un `upsampling`. On en déduit, pour chaque instant du repère, l'instant du parent pendant lequel il a lieu. De proche en proche, on remonte ainsi de n'importe quel repère jusqu'à ceux qui le contiennent.
 
-La section « Les étapes du programme » dit quelles horloges a un programme Faust : elle nomme ce qui occupe les étapes, les tables et les blocs.
+La section « Les étapes du programme » dit quelles horloges a un programme Faust, et ce qui occupe les instants de la première : les tables, puis les blocs.
 
 # Parent et cadence
 
 Une horloge est donnée par deux choses : le repère dans lequel elle est placée : son horloge parente, et le nombre de ses instants qui ont lieu pendant chaque instant de celle-ci : sa cadence.
 
 ::: definition [Horloge]
-Le temps d'une **horloge** est ℕ : ses instants sont les entiers 0, 1, 2, etc. Toute horloge c a :
+Le temps d'une **horloge** est ℕ, ou un début de ℕ si elle n'a qu'un nombre fini d'instants : ses instants sont les entiers 0, 1, 2, etc. Toute horloge c a :
 
 - un **parent**, parent(c), qui est une horloge ;
-- une **cadence**, cadence(c), qui est une fonction de ℕ dans ℕ sur le temps de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c).
+- une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c).
 
-Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, elle est décidée sur les arbres : c'est l'objet de `clocked-signals.md`.
+Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`.
 :::
 
 On note p · r l'horloge dont le parent est p et la cadence r :
@@ -75,12 +75,12 @@ L'**horloge racine**, notée ⊤, est l'horloge qui est son propre parent et don
 \mathit{parent}(⊤) = ⊤ \qquad \mathit{cadence}(⊤) = 1 \qquad\text{c'est-à-dire}\qquad ⊤ = ⊤ · 1
 ```
 
-Toute horloge atteint ⊤ en un nombre fini de passages au parent.
+On demande que toute horloge atteigne ⊤ en un nombre fini de passages au parent : il n'y a ni chaîne infinie de parents, ni cycle.
 :::
 
 La fonction parent est ainsi définie partout, et l'horloge racine en est le seul point fixe. C'est la convention de la racine d'un système de fichiers, qui est son propre répertoire parent.
 
-Son temps n'est pas déduit d'un autre : il est donné, et c'est l'hôte qui le fait avancer.
+Le temps de l'horloge racine n'est pas déduit d'un autre : il est donné, et c'est l'hôte du programme qui le fait avancer.
 
 Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur k s'écrit ⊤ · r₁ · r₂ · … · rₖ : elle est déterminée par la suite de ses cadences.
 
@@ -94,7 +94,7 @@ Il est donc facile de convertir le temps du parent en temps de l'enfant : il suf
 \mathit{fait}(t) = r(0) + r(1) + … + r(t)
 ```
 
-Le temps de c, à la fin de l'instant t de son parent, est donc fait(t) − 1 : c'est le dernier instant de c qui a eu lieu. Tant que la cadence est restée nulle, fait(t) vaut 0 et ce temps vaut −1 : l'horloge n'a pas encore commencé à tourner, et son temps est négatif.
+L'**instant courant** de c, à la fin de l'instant t de son parent, est donc fait(t) − 1 : c'est le dernier instant de c qui a eu lieu. Tant que la cadence est restée nulle, fait(t) vaut 0 et l'instant courant vaut −1 : l'horloge n'a pas encore commencé à tourner. **[D]**
 
 Avec cette fonction, on trouve la conversion inverse : à quel instant du parent correspond un instant de l'enfant.
 
@@ -110,7 +110,7 @@ Un premier exemple, avec la cadence 1, 0, 3, 1 :
 instant t de l'horloge parente p :   0     1     2           3
 cadence r(t) de l'horloge c      :   1     0     3           1
 fait(t)                          :   1     1     4           5
-temps de l'horloge c             :   0     0     3           4
+instant courant de c             :   0     0     3           4
 instants n de l'horloge c        :   0           1  2  3     4
 remontée π(n)                    :   0           2  2  2     3
 ```
@@ -123,20 +123,20 @@ Un second exemple, où la cadence commence par 0 :
 instant t de l'horloge parente p :   0     1     2     3
 cadence r(t) de l'horloge c      :   0     0     1     2
 fait(t)                          :   0     0     1     3
-temps de l'horloge c             :  -1    -1     0     2
+instant courant de c             :  −1    −1     0     2
 instants n de l'horloge c        :               0     1  2
 remontée π(n)                    :               2     3  3
 ```
 
-Pendant les deux premiers instants du parent, l'horloge n'a pas commencé : son temps vaut −1. Son instant 0 a lieu pendant l'instant 2 du parent : rien n'oblige une horloge à commencer en même temps que son parent. C'est le cas d'un `ondemand` qui n'a pas encore reçu de demande.
+Pendant les deux premiers instants du parent, l'horloge n'a pas commencé : son instant courant vaut −1. Son instant 0 a lieu pendant l'instant 2 du parent : rien n'oblige une horloge à commencer en même temps que son parent. Un `ondemand` qui n'a pas encore reçu de demande est dans cette situation.
 
 Pour l'horloge racine, la cadence vaut 1 partout : fait(t) = t + 1, et la remontée est l'identité. La définition générale s'applique donc aussi à ⊤, sans cas particulier.
 
-Si la cadence est nulle à partir d'un certain instant, l'horloge n'a qu'un nombre fini d'instants : son temps est un début de ℕ.
+Une horloge a autant d'instants que la somme de sa cadence sur tous les instants de son parent. Si cette somme est finie, son temps est un début de ℕ, et la remontée n'est définie que sur lui. C'est le cas quand la cadence est nulle à partir d'un certain instant, ou quand le parent n'a lui-même qu'un nombre fini d'instants.
 
 # Sélection et subdivision
 
-Deux cas sont remarquables.
+Deux sortes de cadences sont remarquables.
 
 Sélection
 :   La cadence ne vaut jamais plus de 1. Il n'y a jamais deux instants pendant le même instant du parent : la remontée est strictement croissante.
@@ -144,7 +144,7 @@ Sélection
 Subdivision
 :   La cadence vaut toujours au moins 1. Il se passe quelque chose pendant chaque instant du parent : la remontée atteint tous les instants du parent.
 
-Dans les deux exemples de la section précédente, la cadence n'est ni l'une ni l'autre. Celle de l'horloge racine est les deux à la fois.
+L'horloge d'un `ondemand` ou d'un `downsampling` est une sélection ; celle d'un `upsampling` est une subdivision. Dans les deux exemples de la section précédente, la cadence n'est ni l'une ni l'autre. Celle de l'horloge racine est les deux à la fois.
 
 Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et une remontée identité. Elle n'est pas égale à p pour autant, sauf si p est l'horloge racine : son parent est p, alors que celui de p est parent(p).
 
@@ -152,7 +152,7 @@ Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et un
 
 Le temps de l'horloge racine est la suite des **étapes** du programme : d'abord une étape par table à remplir, puis une étape par bloc. **[D]**
 
-Prenons un programme qui a deux tables. La première à être calculée, T₁, a N valeurs. La seconde, T₂, en a M, et doit être calculée après la première. Viennent ensuite les blocs : chaque appel de la méthode `compute` en traite un, de taille B₀, puis B₁, etc.
+Prenons un programme qui a deux tables. La première à être calculée, T₁, a N valeurs. La seconde, T₂, en a M, et doit être calculée après la première. Viennent ensuite les blocs : chaque appel de la méthode `compute` en traite un, de taille B₀, puis B₁, etc. On note aussi T₁ et T₂ les horloges des deux tables, et **S** celle des échantillons.
 
 ```
 étape t de l'horloge racine :   0     1     2     3     4    …
@@ -166,33 +166,37 @@ Ces trois horloges ont l'horloge racine pour parent, et ne diffèrent que par le
 
 - celle de T₁ a pour cadence N, puis 0 indéfiniment : ses N instants ont tous lieu pendant l'étape 0 ;
 - celle de T₂ a pour cadence 0, puis M, puis 0 indéfiniment : ses M instants ont tous lieu pendant l'étape 1, quand T₁ est remplie ;
-- celle des échantillons, **S**, a pour cadence 0, 0, B₀, B₁, etc. Pendant les étapes des tables elle n'a pas commencé, et son temps vaut −1 ; elle a ensuite, pendant chaque étape, autant d'instants que le bloc a d'échantillons.
+- celle des échantillons, **S**, a pour cadence 0, 0, B₀, B₁, etc. Pendant les étapes des tables elle n'a pas commencé, et son instant courant vaut −1 ; elle a ensuite, pendant chaque étape, autant d'instants que le bloc a d'échantillons.
 
 Ces horloges de profondeur 1 sont les **repères de base** :
 
-| Repère de base | Sa cadence | Son temps |
+| Repère de base | Sa cadence | Ses instants |
 | :--- | :--- | :--- |
-| une table de taille n | n pendant l'étape de la table, 0 ailleurs | n instants |
-| les échantillons, **S** | 0 pendant les étapes des tables, puis la taille de chaque bloc | infini |
+| une table | sa taille pendant l'étape de la table, 0 ailleurs | autant que la table a de valeurs |
+| les échantillons, **S** | 0 pendant les étapes des tables, puis la taille de chaque bloc | une infinité |
+
+**[D]** Les blocs ne sont pas une horloge à part : ce sont des instants de l'horloge racine, que **S** découpe en échantillons.
 
 Le premier échantillon n'a donc pas lieu pendant une étape d'initialisation : il a lieu pendant l'étape du premier bloc.
 
-Sous chaque repère de base, on construit des **régions** par les mêmes dérivations : ce sont les horloges dérivées d'un repère de base ou d'une autre région, celles que créent `ondemand`, `upsampling` et `downsampling`. Le calcul ne distingue pas l'initialisation de l'exécution : seule change l'étape qui héberge le repère de base.
+Sous chaque repère de base, on construit des **régions** par la même construction p · r : ce sont les horloges dont le parent est un repère de base ou une autre région, celles que créent `ondemand`, `upsampling` et `downsampling`. Rien ne distingue donc l'initialisation, faite pendant les étapes des tables, de l'exécution, faite pendant celles des blocs : une région se construit de la même façon sous l'horloge d'une table et sous celle des échantillons.
 
 # Les ancêtres
 
-Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi de suite jusqu'à ⊤. **[D]** On note c ≤ a quand a est un ancêtre de c : c est construite sur a, et chacun de ses instants a lieu pendant un instant de a. Les ancêtres d'une horloge forment une chaîne, d'elle jusqu'à l'horloge racine.
+Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi de suite jusqu'à ⊤ : ils forment une chaîne, d'elle jusqu'à l'horloge racine. On note c ≤ a quand a est un ancêtre de c : c est construite sur a, et chacun de ses instants a lieu pendant un instant de a. **[D]**
 
 Pour remonter d'une horloge c à l'un de ses ancêtres a, on compose les remontées successives. On note π(c → a) cette remontée composée ; π(c → c) est l'identité.
 
-Deux horloges quelconques ont toujours un plus proche ancêtre commun, puisque ⊤ est l'ancêtre de toutes. Si aucune n'est l'ancêtre de l'autre, elles sont **incompatibles** : ce que l'on calcule sur l'une et sur l'autre ne peut se rencontrer que sur cet ancêtre commun.
+Deux horloges quelconques ont toujours un plus proche ancêtre commun : ⊤ est l'ancêtre de toutes, et la chaîne des ancêtres d'une horloge est finie. Si l'une des deux est l'ancêtre de l'autre, elles sont **compatibles**. Sinon elles sont **incompatibles** : ce que l'on calcule sur l'une et sur l'autre ne peut se rencontrer qu'après être remonté jusqu'à cet ancêtre commun.
 
-Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle. On ajoute en dessous de toutes un plus petit élément, noté ⊥ : l'**horloge vide**, celle qui n'a aucun instant. N'ayant aucun instant, elle est dans toutes les autres. Les horloges forment alors un **treillis** :
+Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle. On ajoute à cet ordre un plus petit élément, noté ⊥, placé par construction en dessous de toutes les horloges. Ce n'est pas une horloge au sens de la définition : il n'a ni parent ni cadence. On l'appelle l'**horloge vide**, et on le lit comme ce que deux horloges incompatibles ont en commun : rien. **[D]**
 
-- la borne supérieure de deux horloges est leur plus proche ancêtre commun : la plus petite horloge qui les contient toutes les deux ;
-- la borne inférieure est faite des instants qui leur sont communs. Pour deux horloges compatibles, c'est la plus profonde des deux. Pour deux horloges incompatibles, c'est ⊥ : elles n'ont aucun instant commun.
+Avec cet élément, les horloges forment un **treillis** :
 
-L'horloge vide n'est l'horloge d'aucun calcul : un calcul dont les arguments n'ont aucun instant commun ne peut être fait nulle part. Les règles d'horloge de `clocked-signals.md` le refusent. Elle ne se confond pas avec une horloge p · 0, de cadence toujours nulle : celle-ci n'a pas d'instant non plus, mais elle a un parent, et n'est que dans ses propres ancêtres.
+- la borne supérieure de deux horloges est leur plus proche ancêtre commun ;
+- la borne inférieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est ⊥, puisque aucune horloge n'est construite à la fois sur l'une et sur l'autre.
+
+Un calcul dont les arguments sont sur des horloges incompatibles ne peut être fait nulle part : son horloge serait ⊥. Les règles d'horloge de `clocked-signals.md` le refusent. L'horloge vide ne se confond pas avec une horloge p · 0, de cadence toujours nulle : celle-ci n'a pas d'instant non plus, mais c'est une horloge, qui a un parent et n'est en dessous que de ses propres ancêtres.
 
 ```mermaid "Le treillis des horloges d'un programme" \label{fig:treillis}
 flowchart TD
@@ -216,9 +220,7 @@ flowchart TD
   B --> X
 ```
 
-Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`. T₁ et T₂ sont les repères de ses tables, **S** celui des échantillons.
-
-Les blocs n'y sont pas une horloge à part : ce sont des instants de l'horloge racine, dont le temps est fait d'une étape par table, puis d'une étape par bloc. L'horloge **S** subdivise chaque bloc en ses échantillons.
+Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle, ou à ⊥. Ce sont les horloges du programme de la section précédente, auquel on ajoute un `ondemand`, dont la cadence est la demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`.
 
 Quelques exemples lus sur ce dessin :
 
@@ -233,14 +235,14 @@ Quelques exemples lus sur ce dessin :
 
 Ces horloges décrivent une exécution synchrone et causale, et elles reprennent des notions établies.
 
-- Dans Lustre et Lucid Synchrone, un flot est une suite de valeurs et une horloge est un type, `base` ou `ck on c`. Notre c · r est la même construction, avec une cadence entière au lieu d'un booléen. Voir les [notes de cours de M. Pouzet sur le calcul d'horloges](https://www.di.ens.fr/~pouzet/cours/mpri/cours6/clock-calculus.pdf).
+- Dans Lustre et Lucid Synchrone, un flot est une suite de valeurs et une horloge est un type, `base` ou `ck on c`. Notre p · r est la même construction, avec une cadence entière au lieu d'un booléen. Voir les [notes de cours de M. Pouzet sur le calcul d'horloges](https://www.di.ens.fr/~pouzet/cours/mpri/cours6/clock-calculus.pdf).
 - L'égalité des horloges y est structurelle ; c'est aussi le choix de `clocked-signals.md`.
 - Les domaines réactifs de ReactiveML créent une échelle de temps plus rapide en subdivisant un instant du parent, et leurs instants locaux sont inobservables de l'extérieur. C'est notre subdivision. Voir [Time Refinement in a Functional Synchronous Language](https://www.di.ens.fr/~pouzet/bib/scp15.pdf).
 
 # Décisions
 
 - Chaque horloge a pour temps ℕ, ou un début de ℕ. Une horloge a un parent et une cadence ; l'horloge racine est son propre parent, de cadence 1.
-- Une horloge qui n'a pas commencé a pour temps −1.
+- L'instant courant d'une horloge est le dernier de ses instants qui a eu lieu ; il vaut −1 tant qu'elle n'a pas commencé.
 - L'horloge racine a pour instants les étapes du programme : une par table, puis une par bloc. Les blocs ne sont pas une horloge à part.
-- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. L'horloge racine ⊤ en est le plus grand élément ; l'horloge vide ⊥, qui n'a aucun instant, le plus petit.
+- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. L'horloge racine ⊤ en est le plus grand élément. Un plus petit élément ⊥, l'horloge vide, est ajouté à l'ordre : c'est la borne inférieure de deux horloges incompatibles.
 - Spécifier d'abord ; implémenter après la bascule de `master-dev`.

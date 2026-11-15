@@ -63,7 +63,7 @@ Il reprend de `clocks.md`, sans les redéfinir :
 | :--- | :--- |
 | p · r | l'horloge de parent p et de cadence r |
 | ⊤ | l'horloge racine, dont les instants sont les étapes du programme |
-| repère de base | une horloge dont le parent est ⊤ : celle d'une table, ou celle des échantillons |
+| repère de base | une horloge de profondeur 1, dont le parent est ⊤ : celle d'une table, ou celle des échantillons |
 | **S** | l'horloge des échantillons |
 | région | une horloge dérivée d'un repère de base ou d'une autre région |
 | fait(t) | le nombre d'instants d'une horloge qui ont eu lieu à la fin de l'instant t de son parent |
