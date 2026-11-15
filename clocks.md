@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v37
+subtitle: Spécification, brouillon v38
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -146,12 +146,12 @@ La remontée est croissante. La cadence et la remontée disent la même chose : 
 Un premier exemple, avec la cadence 1, 0, 3, 1 :
 
 ```
-instant du parent   t   :   0     1     2           3
-cadence           r(t)  :   1     0     3           1
-fait(t)                 :   1     1     4           5
-temps de l'horloge      :   0     0     3           4
-instants de l'horloge n :   0           1  2  3     4
-remontée          π(n)  :   0           2  2  2     3
+instant t de l'horloge parente p :   0     1     2           3
+cadence r(t) de l'horloge c      :   1     0     3           1
+fait(t)                          :   1     1     4           5
+temps de l'horloge c             :   0     0     3           4
+instants n de l'horloge c        :   0           1  2  3     4
+remontée π(n)                    :   0           2  2  2     3
 ```
 
 Pendant l'instant 1 du parent il ne se passe rien. Pendant l'instant 2 ont lieu trois instants de l'horloge.
@@ -159,12 +159,12 @@ Pendant l'instant 1 du parent il ne se passe rien. Pendant l'instant 2 ont lieu 
 Un second exemple, où la cadence commence par 0 :
 
 ```
-instant du parent   t   :   0     1     2     3
-cadence           r(t)  :   0     0     1     2
-fait(t)                 :   0     0     1     3
-temps de l'horloge      :  -1    -1     0     2
-instants de l'horloge n :               0     1  2
-remontée          π(n)  :               2     3  3
+instant t de l'horloge parente p :   0     1     2     3
+cadence r(t) de l'horloge c      :   0     0     1     2
+fait(t)                          :   0     0     1     3
+temps de l'horloge c             :  -1    -1     0     2
+instants n de l'horloge c        :               0     1  2
+remontée π(n)                    :               2     3  3
 ```
 
 Pendant les deux premiers instants du parent, l'horloge n'a pas commencé : son temps vaut −1. Son instant 0 a lieu pendant l'instant 2 du parent : rien n'oblige une horloge à commencer en même temps que son parent. C'est le cas d'un `ondemand` qui n'a pas encore reçu de demande.
