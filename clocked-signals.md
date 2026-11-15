@@ -1,6 +1,6 @@
 ---
 title: Les signaux à horloge de Faust
-subtitle: Spécification, brouillon v43
+subtitle: Spécification, brouillon v45
 date: 15 novembre 2026
 document-style: article-a4
 language: fr
@@ -61,6 +61,7 @@ Il reprend de `clocks.md`, sans les redéfinir :
 
 | Notation | Sens |
 | :--- | :--- |
+| temps d'une horloge | ℤ ; elle commence à l'instant 0, et ses instants négatifs sont ceux d'avant son démarrage |
 | p · r | l'horloge de parent p et de cadence r |
 | ⊤ | l'horloge racine, dont les instants sont les étapes du programme |
 | repère de base | une horloge de profondeur 1, dont le parent est ⊤ : celle d'une table, ou celle des échantillons |
@@ -126,7 +127,7 @@ C'est l'opération x ↑ h de la spec v5, dont h⁺(t) = fait(t) − 1 traduit l
 
 ## La cadence est un signal
 
-Une cadence est une fonction de ℕ dans ℕ : c'est exactement un signal entier de l'horloge parente. Dans un programme, la cadence de p · r est un signal comme un autre, entier, positif ou nul, visible depuis le parent p. Les deux notions dépendent donc l'une de l'autre : un signal a une horloge, et une horloge a pour cadence un signal.
+Une cadence donne un entier positif ou nul à chaque instant du parent, et vaut 0 avant l'instant 0 : c'est exactement un signal entier de l'horloge parente, qui comme tout signal est nul avant l'instant 0. Dans un programme, la cadence de p · r est un signal comme un autre, entier, positif ou nul, visible depuis le parent p. Les deux notions dépendent donc l'une de l'autre : un signal a une horloge, et une horloge a pour cadence un signal.
 
 Plusieurs choses en découlent.
 
