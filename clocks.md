@@ -133,7 +133,7 @@ Il est donc facile de convertir le temps du parent en temps de l'enfant : il suf
 \mathit{fait}(t) = r(0) + r(1) + … + r(t)
 ```
 
-Le dernier instant de c qui a eu lieu est alors l'instant fait(t) − 1. Si fait(t) vaut 0, aucun instant de c n'a encore eu lieu.
+Le temps de c, à la fin de l'instant t de son parent, est donc fait(t) − 1 : c'est le dernier instant de c qui a eu lieu. Tant que la cadence est restée nulle, fait(t) vaut 0 et ce temps vaut −1 : l'horloge n'a pas encore commencé à tourner, et son temps est négatif.
 
 Avec cette fonction, on trouve la conversion inverse : à quel instant du parent correspond un instant de l'enfant.
 
@@ -149,6 +149,7 @@ Un premier exemple, avec la cadence 1, 0, 3, 1 :
 instant du parent   t   :   0     1     2           3
 cadence           r(t)  :   1     0     3           1
 fait(t)                 :   1     1     4           5
+temps de l'horloge      :   0     0     3           4
 instants de l'horloge n :   0           1  2  3     4
 remontée          π(n)  :   0           2  2  2     3
 ```
@@ -161,11 +162,12 @@ Un second exemple, où la cadence commence par 0 :
 instant du parent   t   :   0     1     2     3
 cadence           r(t)  :   0     0     1     2
 fait(t)                 :   0     0     1     3
+temps de l'horloge      :  -1    -1     0     2
 instants de l'horloge n :               0     1  2
 remontée          π(n)  :               2     3  3
 ```
 
-Pendant les deux premiers instants du parent, l'horloge n'a encore aucun instant : fait(t) vaut 0, et il n'y a pas de dernier instant. Son instant 0 a lieu pendant l'instant 2 du parent : rien n'oblige une horloge à commencer en même temps que son parent. C'est le cas d'un `ondemand` qui n'a pas encore reçu de demande.
+Pendant les deux premiers instants du parent, l'horloge n'a pas commencé : son temps vaut −1. Son instant 0 a lieu pendant l'instant 2 du parent : rien n'oblige une horloge à commencer en même temps que son parent. C'est le cas d'un `ondemand` qui n'a pas encore reçu de demande.
 
 Pour l'horloge racine, la cadence vaut 1 partout : fait(t) = t + 1, et la remontée est l'identité. La définition générale s'applique donc aussi à ⊤, sans cas particulier.
 
@@ -252,7 +254,7 @@ Depuis une subdivision, on voit toutes les valeurs du signal, chacune répétée
 Dans l'autre sens, il n'y a pas de fonction : pendant un instant du parent, une horloge peut avoir plusieurs instants, ou aucun. Sortir un signal demande donc de choisir une valeur. C'est la seule opération explicite entre deux repères ; les tables en auront une variante, qui garde toutes les valeurs.
 
 ::: definition [Sortie]
-Soit p une horloge, r une cadence sur p, et y un signal visible depuis p · r. La **sortie** `Up(p · r, y)` est le signal d'horloge p qui vaut, à l'instant t de p, la valeur de y au **dernier instant de p · r déjà fait** à la fin de t, c'est-à-dire à l'instant fait(t) − 1, où fait(t) = r(0) + … + r(t). S'il n'y en a encore aucun, elle vaut 0.
+Soit p une horloge, r une cadence sur p, et y un signal visible depuis p · r. La **sortie** `Up(p · r, y)` est le signal d'horloge p qui vaut, à l'instant t de p, la valeur de y au **dernier instant de p · r déjà fait** à la fin de t, c'est-à-dire à l'instant fait(t) − 1, où fait(t) = r(0) + … + r(t). Tant que p · r n'a pas commencé, cet instant est −1, et la sortie vaut 0.
 :::
 
 La sortie a donc trois opérandes : l'horloge parente p, la cadence r, et le signal y. Les deux premiers sont réunis dans l'horloge p · r, dont r est la dernière cadence. Quand une horloge est nommée, par exemple c = p · r, on écrit `Up(c, y)` ; la cadence est alors la dernière de c.
@@ -332,7 +334,7 @@ Sortie
 
 Seules les deux dernières règles sont nouvelles. Avec la sortie des tables, `Gen`, variante de la seconde donnée au chapitre « Les tables », ce sont les seuls endroits où l'indice du crochet change, et les seuls où interviennent les cadences : la vue par la remontée, la sortie par le nombre d'instants faits.
 
-Pour que la première règle soit cohérente avec la vue, on prolonge la remontée : un instant négatif d'un repère remonte sur un instant négatif de son parent. La sortie vaut alors bien 0 tant que fait(t) = 0.
+Pour que la première règle soit cohérente avec la vue, on prolonge la remontée : un instant négatif d'un repère remonte sur un instant négatif de son parent. La sortie n'a pas besoin de cas particulier : tant que fait(t) = 0, elle lit y à l'instant −1, où tout signal vaut 0.
 
 **Voir puis retarder n'est pas retarder puis voir.** Un retard d'horloge c, regardé depuis un repère plus profond, reste calculé dans c : c'est la règle de vue qui s'applique, pas celle du retard. L'horloge portée par le retard fixe le repère où l'on compte.
 
@@ -805,7 +807,7 @@ W : c ⊢ e1 : c1; …; W : c ⊢ e_n : c_n; c1 ≤ c; …; c_n ≤ c; c ∈ \{ 
 Pour les attributs de valeur (nature, booléanité, intervalle), `Up(p · r, y)` porte y. De la cadence r, seule compte la possibilité qu'elle soit nulle au premier instant :
 
 - si la cadence vaut au moins 1 au premier instant du parent : la valeur de y. C'est toujours le cas d'une subdivision ;
-- sinon : la valeur de y **unie à** 0, ce que vaut la sortie tant que c n'a pas eu d'instant.
+- sinon : la valeur de y **unie à** 0, ce que vaut la sortie tant que c n'a pas commencé.
 
 La sortie porte l'union avec la valeur initiale, exactement comme le retard dans `FIXPOINT-SPEC.md` (Y@#1 = Y ⊔ α(0)).
 
