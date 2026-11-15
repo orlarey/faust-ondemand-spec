@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v39
+subtitle: Spécification, brouillon v40
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -189,16 +189,18 @@ Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et un
 
 ## Les ancêtres
 
-Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi de suite jusqu'à ⊤. On note a ≤ c quand a est un ancêtre de c. Les ancêtres d'une horloge forment une chaîne, de l'horloge racine jusqu'à elle.
+Les **ancêtres** d'une horloge c sont c, parent(c), parent(parent(c)), et ainsi de suite jusqu'à ⊤. **[D]** On note c ≤ a quand a est un ancêtre de c : c est construite sur a, et chacun de ses instants a lieu pendant un instant de a. Les ancêtres d'une horloge forment une chaîne, d'elle jusqu'à l'horloge racine.
 
 Pour remonter d'une horloge c à l'un de ses ancêtres a, on compose les remontées successives. On note π(c → a) cette remontée composée ; π(c → c) est l'identité.
 
 Deux horloges quelconques ont toujours un plus proche ancêtre commun, puisque ⊤ est l'ancêtre de toutes. Si aucune n'est l'ancêtre de l'autre, elles sont **incompatibles** : leurs signaux ne se rencontrent qu'après être sortis jusqu'à cet ancêtre commun.
 
-Pour l'ordre ≤, l'horloge racine est le plus petit élément. Avec un élément « incompatible » ajouté au-dessus de tous les autres, les horloges forment un **treillis** :
+Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle. On ajoute en dessous de toutes un plus petit élément, noté ⊥ : l'**horloge vide**, celle qui n'a aucun instant. N'ayant aucun instant, elle est dans toutes les autres. Les horloges forment alors un **treillis** :
 
-- la borne inférieure de deux horloges est leur plus proche ancêtre commun ;
-- la borne supérieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est « incompatible ».
+- la borne supérieure de deux horloges est leur plus proche ancêtre commun : la plus petite horloge qui les contient toutes les deux ;
+- la borne inférieure est faite des instants qui leur sont communs. Pour deux horloges compatibles, c'est la plus profonde des deux. Pour deux horloges incompatibles, c'est ⊥ : elles n'ont aucun instant commun.
+
+L'horloge vide n'est l'horloge d'aucun signal : un calcul dont les arguments n'ont aucun instant commun ne peut être fait nulle part, et les règles d'horloge le refusent. Elle ne se confond pas avec une horloge p · 0, de cadence toujours nulle : celle-ci n'a pas d'instant non plus, mais elle a un parent, et n'est que dans ses propres ancêtres.
 
 ```mermaid "Le treillis des horloges d'un programme" \label{fig:treillis}
 flowchart TD
@@ -209,7 +211,7 @@ flowchart TD
   A["S · h<br>un ondemand"]
   B["S · 4<br>un upsampling"]
   C["S · h · 2<br>un upsampling dans l'ondemand"]
-  X["incompatible"]
+  X["⊥<br>l'horloge vide"]
   R --> T1
   R --> T2
   R --> S
@@ -222,16 +224,16 @@ flowchart TD
   B --> X
 ```
 
-Le dessin place la racine en haut, comme pour un arbre : l'ordre ≤ s'y lit de haut en bas, et « incompatible », le plus grand élément, est en bas. Chaque flèche va d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand` ; la section suivante dit ce que sont T₁, T₂ et **S**.
+Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges d'un programme qui a deux tables, un `ondemand` de demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand` ; la section suivante dit ce que sont T₁, T₂ et **S**.
 
 Quelques exemples lus sur ce dessin :
 
-| Horloges | Relation | Borne inférieure | Borne supérieure |
+| Horloges | Relation | Borne supérieure | Borne inférieure |
 | :--- | :--- | :--- | :--- |
-| **S** et **S** · h · 2 | **S** ≤ **S** · h · 2 | **S** | **S** · h · 2 |
-| ⊤ et T₂ | ⊤ ≤ T₂ | ⊤ | T₂ |
-| **S** · h et **S** · 4 | incompatibles | **S** | incompatible |
-| T₁ et **S** · h · 2 | incompatibles | ⊤ | incompatible |
+| **S** et **S** · h · 2 | **S** · h · 2 ≤ **S** | **S** | **S** · h · 2 |
+| ⊤ et T₂ | T₂ ≤ ⊤ | ⊤ | T₂ |
+| **S** · h et **S** · 4 | incompatibles | **S** | ⊥ |
+| T₁ et **S** · h · 2 | incompatibles | ⊤ | ⊥ |
 
 ## Les étapes du programme
 
@@ -776,7 +778,7 @@ Deux jugements : ⊢ s : c se lit « s est un signal d'horloge c », et ⊢ c ok
 ```
 
 ```inference (clk)
-⊢ p \ ok; ⊢ r : a; a ≤ p; r ∈ ℕ
+⊢ p \ ok; ⊢ r : a; p ≤ a; r ∈ ℕ
 ---
 ⊢ p · r \ ok
 ```
@@ -802,19 +804,19 @@ Deux jugements : ⊢ s : c se lit « s est un signal d'horloge c », et ⊢ c ok
 ```
 
 ```inference (op)
-⊢ s1 : c1; …; ⊢ s_n : c_n; c1 ≤ c; …; c_n ≤ c; c ∈ \{ c1, …, c_n \}
+⊢ s1 : c1; …; ⊢ s_n : c_n; c = c1 ⊓ … ⊓ c_n; c ≠ ⊥
 ---
 ⊢ ⋆(s1, …, s_n) : c
 ```
 
 ```inference (mem)
-⊢ p · r \ ok; ⊢ s1 : c1; ⊢ s2 : c2; c1 ≤ p · r; c2 ≤ p · r; p · r ≠ ⊤
+⊢ p · r \ ok; ⊢ s1 : c1; ⊢ s2 : c2; p · r ≤ c1; p · r ≤ c2; p · r ≠ ⊤
 ---
 ⊢ Delay(p · r, s1, s2) : p · r
 ```
 
 ```inference (up)
-⊢ p · r \ ok; ⊢ y : a; a ≤ p · r
+⊢ p · r \ ok; ⊢ y : a; p · r ≤ a
 ---
 ⊢ Up(p · r, y) : p
 ```
@@ -825,15 +827,15 @@ W : c ⊢ Proj(i, W) : c
 ```
 
 ```inference (proj)
-W : c ⊢ e1 : c1; …; W : c ⊢ e_n : c_n; c1 ≤ c; …; c_n ≤ c; c ∈ \{ c1, …, c_n \}
+W : c ⊢ e1 : c1; …; W : c ⊢ e_n : c_n; c = c1 ⊓ … ⊓ c_n; c ≠ ⊥
 ---
 ⊢ Proj(i, W) : c
 ```
 
 - v est une constante, u un slider, x une entrée de `process` ; count et τ(n, G) sont les cadences des repères de base.
-- (op) : l'horloge du résultat est la plus profonde de celles des arguments, qui doivent former une chaîne. C'est la règle de temporalité de `ATTRIBUTES.md` : le join des arguments consultés.
+- (op) : l'horloge du résultat est la borne inférieure, notée ⊓, de celles des arguments. S'ils forment une chaîne, c'est la plus profonde ; sinon c'est ⊥, et la règle échoue. C'est la règle de temporalité de `ATTRIBUTES.md`, qui prend le join des arguments consultés : l'ordre y est seulement écrit dans l'autre sens, la variabilité croissant avec la profondeur.
 - (mem) est écrite pour `Delay` ; elle vaut pour toute opération à horloge, `WRTbl` comprise. (up) vaut aussi pour `Gen`, dont le résultat est sur l'horloge racine, parent de l'horloge de la table.
-- (proj) et (hyp) : e₁ … eₙ sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la plus profonde de leurs horloges. Ce n'est pas une itération : c est l'horloge que porte le `Mem` qui ferme la boucle. Les autres règles transmettent l'hypothèse sans la lire, et elle n'y est pas écrite.
+- (proj) et (hyp) : e₁ … eₙ sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la borne inférieure de leurs horloges. Ce n'est pas une itération : c est l'horloge que porte le `Mem` qui ferme la boucle. Les autres règles transmettent l'hypothèse sans la lire, et elle n'y est pas écrite.
 - (proj) : les projections d'un groupe partagent une horloge, comme elles partagent une variabilité (« le groupe est couplé »). **[D]**
 - (clk) : r entier, positif ou nul, est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle demande en plus que la cadence soit une sélection ou une subdivision, ce qui se lit dans son intervalle : h dans [0, 1] pour `ondemand`, N constant et ≥ 1 pour `upsampling` et `downsampling`.
 - **[D] Si cette preuve échoue, la certification échoue.** Il n'y a pas de repli pour une cadence, à la différence d'un index de table ou du sélecteur de `switch`, qui sont saturés : une cadence corrigée en silence changerait le nombre d'exécutions d'une région.
@@ -1194,6 +1196,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Si la preuve qu'une cadence est une sélection ou une subdivision échoue, la certification échoue : il n'y a pas de repli pour une cadence.
 - Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
+- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. L'horloge racine ⊤ en est le plus grand élément ; l'horloge vide ⊥, qui n'a aucun instant, le plus petit. L'horloge du résultat d'une opération est la borne inférieure de celles de ses arguments.
 - Deux horloges sont égales quand elles ont le même parent et la même cadence, comparée par identité d'arbre après mise en forme normale.
 - Un générateur de table ne capture que des signaux de l'horloge racine. C'est la seule erreur d'horloge possible pour l'utilisateur ; les règles d'horloge la détectent à la propagation.
 - Une fois la propagation réussie, les règles d'horloge vérifient un invariant que chaque transformation doit préserver ; sa vérification est une obligation de certification, et une violation est un défaut du compilateur.
