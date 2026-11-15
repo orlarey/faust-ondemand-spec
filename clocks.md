@@ -1,6 +1,6 @@
 ---
 title: Un calcul d'horloges pour Faust
-subtitle: Spécification, brouillon v31
+subtitle: Spécification, brouillon v32
 date: 14 novembre 2026
 document-style: article-a4
 language: fr
@@ -71,7 +71,13 @@ Sources : `spec.md` (ondemand v5), les documents Expressive E, les slides IFC-24
 
 # Les repères temporels
 
-Ce chapitre construit le temps sur ℕ, sans signaux : ils n'arrivent qu'au chapitre suivant. Seule sa dernière section, « Les étapes du programme », anticipe en nommant ce qui occupe les étapes : les tables et les blocs.
+Dans la version monorate de Faust, la question du temps ne se pose pas : tous les calculs audio sont faits à chaque échantillon. Un signal a une valeur par échantillon, et l'instant t d'un signal est aussi l'instant t de tous les autres.
+
+Avec `ondemand`, `upsampling` et `downsampling`, ce n'est plus vrai. Un calcul peut n'être fait qu'à certains échantillons, quand on le demande, ou au contraire plusieurs fois pendant le même échantillon. Il faut donc un moyen de dire à quels instants un calcul est fait. C'est le rôle de l'**horloge**.
+
+Une horloge est un **repère temporel**. À l'intérieur d'un repère, le temps reste aussi simple qu'en monorate : c'est une suite d'instants, numérotés 0, 1, 2, etc. Ce qui est nouveau, c'est qu'il y a plusieurs repères, et qu'il faut pouvoir passer de l'un à l'autre.
+
+Ce chapitre construit ces repères sur ℕ, sans signaux : ils n'arrivent qu'au chapitre suivant. Seule sa dernière section, « Les étapes du programme », anticipe en nommant ce qui occupe les étapes : les tables et les blocs.
 
 ## Le temps d'une horloge
 
