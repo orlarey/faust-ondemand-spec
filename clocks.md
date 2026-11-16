@@ -1,6 +1,7 @@
 ---
 title: Les horloges de Faust
 subtitle: Spécification, brouillon v47
+author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
 language: fr
