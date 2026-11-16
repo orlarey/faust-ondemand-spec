@@ -1,6 +1,6 @@
 ---
 title: Les signaux à horloge de Faust
-subtitle: Spécification, brouillon v45
+subtitle: Spécification, brouillon v46
 date: 15 novembre 2026
 document-style: article-a4
 language: fr
@@ -26,7 +26,7 @@ language: fr
   - **Une construction qui reçoit des circuits** — la table comparée à un ondemand.
   - **Les quatre opérations** — Gen, ROTbl, WRTbl, RDTbl.
   - **La règle de la table** — elle repart de l'horloge racine.
-  - **La table écrite** — l'état d'une table en lecture-écriture appartient à son contexte.
+  - **La table en lecture-écriture** — son état appartient à son contexte.
   - **La sémantique des tables** — une équation pour chacune des quatre opérations.
   - **Ce qu'un générateur peut capturer** — les signaux de l'horloge racine, et eux seuls.
   - **L'initialisation comme un tout** — l'ensemble ordonné des tables, sous un parent commun.
@@ -57,7 +57,7 @@ Décision du 13 novembre : on spécifie, on n'implémente pas. L'implémentation
 
 L'idée directrice : il n'y a pas de temps global. La sémantique de Faust garde sa forme ; son crochet reçoit seulement un indice, l'horloge d'où l'on regarde.
 
-Il reprend de `clocks.md`, sans les redéfinir :
+Il reprend de `clocks.md` les notions suivantes, qu'il rappelle au besoin :
 
 | Notation | Sens |
 | :--- | :--- |
@@ -68,9 +68,13 @@ Il reprend de `clocks.md`, sans les redéfinir :
 | **S** | l'horloge des échantillons |
 | région | une horloge dérivée d'un repère de base ou d'une autre région |
 | fait(t) | le nombre d'instants d'une horloge qui ont eu lieu à la fin de l'instant t de son parent |
+| instant courant | fait(t) − 1 : le dernier instant de l'horloge qui a eu lieu ; −1 tant qu'elle n'a pas commencé |
 | π(n), π(c → a) | la remontée, d'une horloge à son parent ou à l'un de ses ancêtres |
+| ancêtre | les ancêtres de c sont c elle-même, son parent, et ainsi de suite jusqu'à ⊤ |
 | c ≤ a | a est un ancêtre de c |
+| compatibles, incompatibles | deux horloges dont l'une est l'ancêtre de l'autre, ou non |
 | ⊥ | l'horloge vide, borne inférieure de deux horloges incompatibles |
+| étape | un instant de l'horloge racine : le remplissage d'une table, ou un bloc |
 | sélection, subdivision | une cadence toujours ≤ 1, toujours ≥ 1 |
 
 Les marques **[D]** signalent une décision prise, **[P]** une proposition.
@@ -82,7 +86,7 @@ Sources : `clocks.md`, `spec.md` (ondemand v5), les documents Expressive E, les 
 ## Un signal et son horloge
 
 ::: definition [Signal]
-Un **signal** d'horloge c est une fonction qui donne une valeur réelle à chaque instant de c. Le signal d'une table fait exception : sa valeur est un tableau de n valeurs (voir « La sémantique des tables »).
+Un **signal** d'horloge c est une fonction qui donne une valeur réelle à chaque instant de c. Le signal d'une table fait exception : sa valeur est un tableau, qui a autant de valeurs que la table (voir « La sémantique des tables »).
 :::
 
 - Une constante est un signal de l'horloge racine, qui prend la même valeur à chaque étape.
@@ -114,14 +118,14 @@ Depuis une subdivision, on voit toutes les valeurs du signal, chacune répétée
 Dans l'autre sens, il n'y a pas de fonction : pendant un instant du parent, une horloge peut avoir plusieurs instants, ou aucun. Sortir un signal demande donc de choisir une valeur. C'est la seule opération explicite entre deux repères ; les tables en auront une variante, qui garde toutes les valeurs.
 
 ::: definition [Sortie]
-Soit p une horloge, r une cadence sur p, et y un signal visible depuis p · r. La **sortie** `Up(p · r, y)` est le signal d'horloge p qui vaut, à l'instant t de p, la valeur de y au **dernier instant de p · r déjà fait** à la fin de t, c'est-à-dire à l'instant fait(t) − 1, où fait(t) = r(0) + … + r(t). Tant que p · r n'a pas commencé, cet instant est −1, et la sortie vaut 0.
+Soit p une horloge, r une cadence sur p, et y un signal visible depuis p · r. La **sortie** `Up(p · r, y)` est le signal d'horloge p qui vaut, à l'instant t de p, la valeur de y à l'**instant courant** de p · r : le dernier de ses instants qui a eu lieu à la fin de t, c'est-à-dire l'instant fait(t) − 1. Tant que p · r n'a pas commencé, cet instant est −1, et la sortie vaut 0.
 :::
 
 La sortie a donc trois opérandes : l'horloge parente p, la cadence r, et le signal y. Les deux premiers sont réunis dans l'horloge p · r, dont r est la dernière cadence. Quand une horloge est nommée, par exemple c = p · r, on écrit `Up(c, y)` ; la cadence est alors la dernière de c.
 
 La cadence est un véritable argument de la sortie : pour calculer `Up(p · r, y)` à l'instant t, il faut avoir calculé r jusqu'à t. La sortie **consulte** r, au sens de `ATTRIBUTES.md`, et en dépend dans le graphe des calculs.
 
-Pour une sélection, la sortie maintient la valeur entre deux instants de c. Pour une subdivision, elle rend la dernière valeur de chaque groupe : le résultat des itérations faites pendant l'instant du parent. **[D]**
+Pour une sélection, la sortie maintient la valeur entre deux instants de p · r. Pour une subdivision, elle rend la dernière valeur de chaque groupe : le résultat des itérations faites pendant l'instant du parent. **[D]**
 
 C'est l'opération x ↑ h de la spec v5, dont h⁺(t) = fait(t) − 1 traduit le temps ; elle est étendue sans changement aux cadences supérieures à 1.
 
@@ -152,7 +156,7 @@ Avant l'instant 0
 ```
 
 Constante
-:   Elle vaut la même chose à tout instant positif de tout repère.
+:   Elle vaut la même chose à tout instant positif ou nul de tout repère.
 
 ```math
 ⟦v⟧_c(n) = v \qquad \text{pour } n ≥ 0
@@ -176,6 +180,10 @@ Le retard d'un instant se note `Mem(c, x)` : c'est `Delay(c, x, 1)`.
 
 Le retard `Prefix(c, x0, x)` est le même, mais sa première valeur est donnée : il vaut x0 à l'instant 0 de c, puis x à l'instant précédent.
 
+```math
+⟦\mathsf{Prefix}(c, x_0, x)⟧_c(0) = ⟦x_0⟧_c(0), \qquad ⟦\mathsf{Prefix}(c, x_0, x)⟧_c(n) = ⟦x⟧_c(n-1) \quad\text{pour } n ≥ 1
+```
+
 Vue
 :   Un signal d'horloge a, regardé depuis un repère descendant c, se lit en remontant. La remontée se calcule avec les cadences qui séparent a de c.
 
@@ -198,7 +206,7 @@ Pour que la première règle soit cohérente avec la vue, on prolonge la remont�
 
 **Voir puis retarder n'est pas retarder puis voir.** Un retard d'horloge c, regardé depuis un repère plus profond, reste calculé dans c : c'est la règle de vue qui s'applique, pas celle du retard. L'horloge portée par le retard fixe le repère où l'on compte.
 
-**Un slider retardé.** Dans `process`, `slider'` est `Mem(S, u)` : le slider u est sur l'horloge racine, le retard sur celui des échantillons. À l'échantillon n, le retard lit u à l'étape qui contient l'échantillon n − 1. Avec des blocs de 4 échantillons, u valant a puis b :
+**Un slider retardé.** Dans `process`, `slider'` est `Mem(S, u)` : le slider u est sur l'horloge racine, le retard sur celle des échantillons. À l'échantillon n, le retard lit u à l'étape qui contient l'échantillon n − 1. Avec des blocs de 4 échantillons, u valant a puis b :
 
 ```
 échantillon      n :  0  1  2  3  4  5  6  7
@@ -252,7 +260,9 @@ La composition récursive écrit sa boucle de retour avec l'horloge courante. Po
 ⟦A \sim B⟧_k(x) = (y) \quad\text{où}\quad (z) = ⟦B⟧_k(\mathsf{Mem}(k, W)), \quad (y) = ⟦A⟧_k(z, x), \quad W := (y)
 ```
 
-Un groupe récursif est donc créé sous une horloge courante connue : celle du `Mem` qui ferme sa boucle.
+Un groupe récursif est donc créé sous une horloge courante connue : celle du `Mem` qui ferme sa boucle. On note `Proj(i, W)` la sortie numéro i du groupe W.
+
+`prefix`, `waveform` et une fonction étrangère sans argument comptent le temps eux aussi : ils reçoivent l'horloge courante de la même façon.
 
 ## Les trois primitives du langage
 
@@ -264,9 +274,9 @@ Un groupe récursif est donc créé sous une horloge courante connue : celle du 
 
 **[D] N est un signal constant** : sa valeur ne change pas pendant l'exécution. La cadence d'un `upsampling` est donc constante, celle d'un `downsampling` périodique. C'est ce qui donne un sens à la fréquence vue à l'intérieur, N · SR ou SR / N, et ce qui borne par N le coût d'un `upsampling`. Seule la demande h d'un `ondemand` varie.
 
-Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand` dont la demande vaut 1 quand un compteur modulo N, écrit sur l'horloge courante, vaut 0. La fréquence d'échantillonnage appartient à la primitive, pas à l'horloge : la propagation la transporte à côté de l'horloge courante, comme un second paramètre que les règles ci-dessous n'écrivent pas.
+Ce sont trois vues de la même construction. `downsampling(P)(N)` est un `ondemand` dont la demande vaut 1 quand un compteur modulo N, écrit sur l'horloge courante, vaut 0. La fréquence d'échantillonnage appartient à la primitive, pas à l'horloge : la propagation la transporte à côté de l'horloge courante, comme un second paramètre que les règles de propagation n'écrivent pas.
 
-**[D] Une région du langage est une sélection ou une subdivision.** Le calcul définit aussi les cadences mixtes, tantôt nulles, tantôt supérieures à 1, et il en a besoin : celle d'une table et celle des échantillons le sont. Mais le langage n'en offre pas à l'utilisateur, pour trois raisons :
+**[D] Une région du langage est une sélection ou une subdivision.** Le calcul définit aussi les cadences mixtes, tantôt nulles, tantôt supérieures à 1, et il en a besoin : celle d'une table et celle des échantillons le sont en général. Mais le langage n'en offre pas à l'utilisateur, pour trois raisons :
 
 - les lois de la sélection et de la subdivision ne s'y appliquent pas ;
 - la fréquence d'échantillonnage vue à l'intérieur n'y a pas de valeur ;
@@ -276,7 +286,7 @@ Une cadence mixte s'écrit par emboîtement, une sélection dans une subdivision
 
 ```
 c₁ = p · N               une subdivision de l'horloge courante
-j  = le temps de c₁ modulo N,  qui repart de 0 à chaque instant de p
+j  = le numéro de l'instant de c₁, modulo N : il repart de 0 à chaque instant de p
 c₂ = c₁ · (j < r)        une sélection de c₁
 ```
 
@@ -293,7 +303,7 @@ Le premier signal d'entrée donne la cadence, et le corps est propagé avec l'ho
 
 Trois choses s'y passent :
 
-1. la cadence r, un signal de l'horloge k ou de l'un de ses ancêtres, forme la nouvelle horloge k · r ;
+1. la cadence r, un signal d'un ancêtre de k, forme la nouvelle horloge k · r ;
 2. le corps C est propagé avec cette horloge courante : tous ses retards la recevront ;
 3. chaque sortie est ramenée sur l'horloge k par une sortie `Up`.
 
@@ -303,13 +313,13 @@ La sortie d'une région est toujours un signal de l'horloge où la région est �
 
 ## Ce que la propagation garantit
 
-L'invariant est le suivant : sous l'horloge courante k, tout signal lu au niveau de k a pour horloge k ou l'un de ses ancêtres. Les signaux internes d'une région, d'horloge k · r, n'en sortent que par `Up`.
+L'invariant est le suivant : sous l'horloge courante k, tout signal lu au niveau de k a pour horloge un ancêtre de k, k comprise. Les signaux internes d'une région, d'horloge k · r, n'en sortent que par `Up`.
 
 La règle de la région le préserve : elle prolonge k en k · r, et les ancêtres de k restent des ancêtres de k · r. Un signal capturé par le corps d'une région est donc toujours visible.
 
 Une seconde règle change l'horloge courante, celle de la table. Elle ne la prolonge pas : elle repart de l'horloge racine. Elle est donnée au chapitre « Les tables », avec la seule erreur d'horloge que l'utilisateur puisse commettre.
 
-Une fois la propagation réussie, les règles d'horloge données plus loin ne peuvent plus échouer. Elles ne servent pas à trouver les horloges : elles vérifient ce que la propagation a construit, et ce que chaque transformation doit préserver.
+La propagation applique les règles d'horloge données plus loin. Une fois qu'elle a réussi, leurs conditions de visibilité ne peuvent plus échouer : ces règles ne servent pas à trouver les horloges, elles vérifient ce que la propagation a construit, et ce que chaque transformation doit préserver. La preuve qu'une cadence est un entier positif ou nul est une autre obligation, traitée avec les règles.
 
 ## Un retard dans chaque région
 
@@ -464,16 +474,16 @@ Pour une table en lecture-écriture, les trois entrées viennent du contexte, et
 
 La règle de la région et celle de la table sont les deux seules qui changent l'horloge courante. La région la prolonge ; le générateur d'une table repart de l'horloge racine.
 
-## La table écrite
+## La table en lecture-écriture
 
 Une table en lecture-écriture a un état : son contenu change au fil des écritures. Cet état appartient au contexte où elle est écrite. Deux `rwtable` identiques placées dans deux `ondemand` sont deux tables, comme deux retards identiques y sont deux retards : propagées sous deux horloges courantes différentes, elles donnent deux arbres, même si leurs trois entrées sont identiques. **[D]**
 
 `WRTbl(k, n, gen, w, x)` réunit donc deux choses, d'horloges différentes :
 
-- son **contenu initial**, `gen` = `Gen(T, g)` : un signal de l'horloge racine, le même arbre pour toutes les tables écrites de cette taille et de ce générateur ;
+- son **contenu initial**, `gen` = `Gen(T, g)` : un signal de l'horloge racine, le même arbre pour toutes les tables de cette taille et de ce générateur ;
 - sa **mémoire**, qui part de ce contenu et reçoit les écritures : elle vit sur l'horloge k que porte l'opération.
 
-La table écrite est à son contenu initial ce que `Prefix(k, x0, x)` est à sa valeur de départ x0.
+Cette table est à son contenu initial ce que `Prefix(k, x0, x)` est à sa valeur de départ x0.
 
 La table en lecture seule n'a pas de mémoire qui évolue : c'est pourquoi elle est une opération différente, `ROTbl`.
 
@@ -500,17 +510,17 @@ Avant l'étape de la table, fait(t) = 0 et le tableau est nul. À partir de cett
 `RDTbl` est une opération sans mémoire, appliquée instant par instant :
 
 ```math
-⟦\mathsf{RDTbl}(\mathit{tbl}, i)⟧_c(m) = ⟦\mathit{tbl}⟧_c(m)\,[\,⟦i⟧_c(m)\,]
+⟦\mathsf{RDTbl}(\mathit{tbl}, i)⟧_c(m) = ⟦\mathit{tbl}⟧_c(m)\,[\,⟦i⟧_c(m)\,] \qquad\text{pour } m ≥ 0
 ```
 
 `WRTbl` part du contenu initial I et applique une écriture par instant de son horloge k :
 
 ```math
-⟦\mathsf{WRTbl}(k, n, \mathit{gen}, w, x)⟧_k(m) = W(m)
+⟦\mathsf{WRTbl}(k, n, \mathit{gen}, w, x)⟧_k(m) = \mathit{Tab}(m) \qquad\text{pour } m ≥ 0
 ```
 
 ```math
-W(0) = I\,[\,⟦w⟧_k(0) ↦ ⟦x⟧_k(0)\,], \qquad W(m) = W(m-1)\,[\,⟦w⟧_k(m) ↦ ⟦x⟧_k(m)\,] \quad\text{pour } m ≥ 1
+\mathit{Tab}(0) = I\,[\,⟦w⟧_k(0) ↦ ⟦x⟧_k(0)\,], \qquad \mathit{Tab}(m) = \mathit{Tab}(m-1)\,[\,⟦w⟧_k(m) ↦ ⟦x⟧_k(m)\,] \quad\text{pour } m ≥ 1
 ```
 
 Le contenu initial I est le tableau `gen` vu depuis k à son premier instant ; l'étape de la table est alors passée, et le tableau est complet. La lecture d'un instant voit l'écriture du même instant : c'est le comportement du compilateur actuel, qui écrit dans la table puis la lit dans la même itération.
@@ -521,7 +531,7 @@ Un index de lecture ou d'écriture doit rester dans [0, n). C'est une obligation
 
 ## Ce qu'un générateur peut capturer
 
-La règle de la région préserve l'invariant de la propagation (voir « Ce que la propagation garantit »). La règle de la table peut le rompre. Elle repart de l'horloge racine : un signal du contexte qui était sur **S**, ou sur le repère d'une autre table, n'est pas un ancêtre de T.
+La règle de la région préserve l'invariant de la propagation (voir « Ce que la propagation garantit »). La règle de la table peut le rompre. Elle repart de l'horloge racine : un signal du contexte qui était sur **S**, ou sur le repère d'une autre table, n'est pas sur un ancêtre de T.
 
 **[D] Un générateur ne capture que des signaux de l'horloge racine** : des constantes, des sliders, qui y valent leur valeur par défaut, et des tables. C'est la seule erreur d'horloge que l'utilisateur puisse commettre :
 
@@ -529,7 +539,7 @@ La règle de la région préserve l'invariant de la propagation (voir « Ce que 
 process(x) = rdtable(16, x, index);    // erreur : x est capturé
 ```
 
-Les règles d'horloge la détectent sans vérification à part, puisque le signal capturé est sur une horloge incompatible avec T. Le message dit que le générateur d'une table lit un signal qui n'est pas sur l'horloge racine.
+Les règles d'horloge, que la propagation applique, la détectent sans vérification à part : le signal capturé est sur une horloge incompatible avec T. Le message dit que le générateur d'une table lit un signal qui n'est pas sur l'horloge racine.
 
 ## L'initialisation comme un tout
 
@@ -551,6 +561,8 @@ Le compilateur n'a longtemps pas procédé ainsi : il compilait une table dans l
 Un slider est visible depuis le repère d'une table, et il y vaut sa valeur par défaut : le générateur le voit comme une constante. La table est donc calculable à l'initialisation, et un réglage fait ensuite ne la modifie pas. Le compilateur actuel refuse un générateur qui lit un slider (`checkInit failed`) : c'est une extension. **[D]**
 
 # Les règles d'horloge
+
+Une règle d'horloge dit sur quelle horloge est le résultat d'une opération, et à quelles conditions ses arguments y sont visibles.
 
 ## Trois sortes d'opérations
 
@@ -643,31 +655,31 @@ Deux jugements : ⊢ s : c se lit « s est un signal d'horloge c », et ⊢ c ok
 
 ```inference (hyp)
 ---
-W : c ⊢ Proj(i, W) : c
+Γ, W : c ⊢ Proj(i, W) : c
 ```
 
 ```inference (proj)
-W : c ⊢ e1 : c1; …; W : c ⊢ e_n : c_n; c = c1 ⊓ … ⊓ c_n; c ≠ ⊥
+Γ, W : c ⊢ e1 : c1; …; Γ, W : c ⊢ e_n : c_n; c = c1 ⊓ … ⊓ c_n; c ≠ ⊥
 ---
-⊢ Proj(i, W) : c
+Γ ⊢ Proj(i, W) : c
 ```
 
 - v est une constante, u un slider, x une entrée de `process` ; count et τ(n, G) sont les cadences des repères de base.
 - (op) : l'horloge du résultat est la borne inférieure, notée ⊓, de celles des arguments. S'ils forment une chaîne, c'est la plus profonde ; sinon c'est ⊥, et la règle échoue. C'est la règle de temporalité de `ATTRIBUTES.md`, qui prend le join des arguments consultés : l'ordre y est seulement écrit dans l'autre sens, la variabilité croissant avec la profondeur.
 - (mem) est écrite pour `Delay` ; elle vaut pour toute opération à horloge, `WRTbl` comprise. (up) vaut aussi pour `Gen`, dont le résultat est sur l'horloge racine, parent de l'horloge de la table.
-- (proj) et (hyp) : e₁ … eₙ sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la borne inférieure de leurs horloges. Ce n'est pas une itération : c est l'horloge que porte le `Mem` qui ferme la boucle. Les autres règles transmettent l'hypothèse sans la lire, et elle n'y est pas écrite.
+- (proj) et (hyp) : e₁ … eₙ sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la borne inférieure de leurs horloges. Ce n'est pas une itération : dès que la boucle de retour est effectivement lue, c est l'horloge que porte le `Mem` qui la ferme. Γ rassemble les hypothèses sur les groupes qui englobent W ; les autres règles le transmettent sans le lire, et il n'y est pas écrit.
 - (proj) : les projections d'un groupe partagent une horloge, comme elles partagent une variabilité (« le groupe est couplé »). **[D]**
 - (clk) : r entier, positif ou nul, est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle demande en plus que la cadence soit une sélection ou une subdivision, ce qui se lit dans son intervalle : h dans [0, 1] pour `ondemand`, N constant et ≥ 1 pour `upsampling` et `downsampling`.
-- **[D] Si cette preuve échoue, la certification échoue.** Il n'y a pas de repli pour une cadence, à la différence d'un index de table ou du sélecteur de `switch`, qui sont saturés : une cadence corrigée en silence changerait le nombre d'exécutions d'une région.
+- **[D] Si cette preuve échoue, la certification échoue.** Il n'y a pas de repli pour une cadence, à la différence d'un index de table ou du sélecteur de `switch` (voir l'exemple « Aiguillage »), qui sont saturés : une cadence corrigée en silence changerait le nombre d'exécutions d'une région.
 - Toutes les règles demandent des arguments visibles depuis l'horloge où ils sont lus. À la propagation, elles ne peuvent échouer que d'une façon : un générateur de table qui capture un signal hors de l'horloge racine. C'est une erreur de l'utilisateur.
-- Dans un programme dont la propagation a réussi, elles ne peuvent plus échouer : sous l'horloge courante k, tout signal lu au niveau de k a pour horloge k ou l'un de ses ancêtres, et ces ancêtres forment une chaîne. C'est un invariant que chaque transformation doit préserver. Sa vérification est une obligation de certification ; une violation est alors un défaut du compilateur. **[D]**
+- Dans un programme dont la propagation a réussi, leurs conditions de visibilité ne peuvent plus échouer : sous l'horloge courante k, tout signal lu au niveau de k a pour horloge un ancêtre de k, et ces ancêtres forment une chaîne. C'est un invariant que chaque transformation doit préserver. Sa vérification est une obligation de certification ; une violation est alors un défaut du compilateur. **[D]**
 
 ## Règles de valeur
 
-Pour les attributs de valeur (nature, booléanité, intervalle), `Up(p · r, y)` porte y. De la cadence r, seule compte la possibilité qu'elle soit nulle au premier instant :
+Pour les attributs de valeur (nature, booléanité, intervalle), `Up(p · r, y)` a les attributs de valeur de y. De la cadence r, seule compte la possibilité qu'elle soit nulle au premier instant :
 
 - si la cadence vaut au moins 1 au premier instant du parent : la valeur de y. C'est toujours le cas d'une subdivision ;
-- sinon : la valeur de y **unie à** 0, ce que vaut la sortie tant que c n'a pas commencé.
+- sinon : la valeur de y **unie à** 0, ce que vaut la sortie tant que p · r n'a pas commencé.
 
 La sortie porte l'union avec la valeur initiale, exactement comme le retard dans `FIXPOINT-SPEC.md` (Y@#1 = Y ⊔ α(0)).
 
@@ -689,7 +701,7 @@ Dans le domaine d'horizon (`HORIZON.md`), l'intervalle d'un signal est une forme
 
 | Grandeur | Minorant | Majorant |
 | :--- | :--- | :--- |
-| fait(t) − 1, le dernier instant calculé | rmin·(t+1) − 1 | rmax·(t+1) − 1 |
+| fait(t) − 1, l'instant courant | rmin·(t+1) − 1 | rmax·(t+1) − 1 |
 | π(n), la remontée | (n − rmax + 1) / rmax | n / rmin ; l'horizon de p si rmin = 0 |
 
 Si rmax = 0, l'horloge n'a aucun instant : il n'y a ni vue ni forme, et toute sortie vaut 0. On suppose donc rmax ≥ 1. Le minorant de π(n) est négatif pour n < rmax − 1 ; on le remplace alors par 0.
@@ -747,10 +759,10 @@ Retard vu d'une sélection
 :   si r ≤ 1 et si x est un signal visible depuis c, `Mem(p, Up(c, x))` vu de c vaut `Mem(c, x)`.
 
 Composition
-:   pour deux cadences booléennes, (p · h₁) · h₀ a les mêmes instants que p · (h₁ × `Up(p · h₁, h₀)`). C'est h₀ ⊗ h₁ de la spec v5. Les deux horloges ne sont pas égales, puisque leurs parents diffèrent ; mais si aucun signal ne vit sur l'horloge intermédiaire p · h₁, deux sorties successives se réduisent à une seule.
+:   pour deux cadences booléennes, (p · h₁) · h₀ a les mêmes instants que p · (h₁ × `Up(p · h₁, h₀)`). C'est h₀ ⊗ h₁ de la spec v5. Si h₀ est visible depuis p, la loi de sélection simplifie cette cadence en h₁ × h₀. Les deux horloges ne sont pas égales, puisque leurs parents diffèrent ; mais si aucun signal ne vit sur l'horloge intermédiaire p · h₁, la cadence h₀ comprise, deux sorties successives se réduisent à une seule.
 
 Cas dégénérés
-:   avec r = 1 partout, c a le même temps que p et la remontée est l'identité : `Up(p · 1, y)` = y, et une opération d'horloge p · 1 vaut la même opération d'horloge p. Avec r = 0 partout, c n'a aucun instant et toute sortie vaut 0.
+:   avec r = 1 partout, c a le même temps que p et la remontée est l'identité : `Up(p · 1, y)` = y pour y sur un ancêtre de p, et une opération d'horloge p · 1 vaut la même opération d'horloge p. Avec r = 0 partout, c n'a aucun instant et toute sortie vaut 0.
 
 La fusion `ondemand(P)(h) : ondemand(Q)(h)` = `ondemand(P:Q)(h)` découle de la loi de sélection et de l'égalité des horloges. Elle est fausse pour un `upsampling`.
 
@@ -773,7 +785,7 @@ output0[i] = fUp0;
 
 ## Ondemand imbriqués
 
-`ondemand(ondemand(P))` : aucun signal ne vit sur l'horloge intermédiaire. Par la loi de composition, les deux sorties se réduisent à une seule, sur une seule horloge.
+`ondemand(ondemand(P))`, avec deux demandes h₁ et h₀ venues de l'extérieur : aucun signal ne vit sur l'horloge intermédiaire. Par la loi de composition, les deux sorties se réduisent à une seule, sur la seule horloge **S** · (h₁ × h₀).
 
 ## Récursion à travers la frontière
 
@@ -813,7 +825,7 @@ output0[i] = fRec0[0];
 | C reçoit | | | | x0 x1 x2 x3 | | | | x4 x5 x6 x7 |
 | sortie | 0 | 0 | 0 | a0 | b0 | c0 | d0 | a1 |
 
-Le calcul l'exprime sans rien ajouter. L'horloge courante est notée ici p, la lettre k étant prise par le nombre de signaux entrelacés ; t est son temps, q un instant de l'horloge de C :
+Le calcul l'exprime sans rien ajouter. L'horloge courante est notée ici p, la lettre k étant prise par le nombre de signaux entrelacés ; t est un instant de p, q un instant de l'horloge de C :
 
 ```
 ⟦interleave(n, m, C)⟧ₚ(x₀ … xₙ₋₁) = (o₀ … oₘ₋₁)
@@ -825,7 +837,7 @@ Le calcul l'exprime sans rien ajouter. L'horloge courante est notée ici p, la l
 
 - **L'horloge de C** est une sélection périodique de p.
 - **L'entrée** numéro a·k + j de C est le retard de k−1−j du signal x_a, pris dans le parent. Vu depuis c à l'instant q, il vaut x_a(k·q + j) : les k retards font la trame.
-- **La sortie** numéro b est choisie parmi les k sorties `Up(c, y_b,j)`, selon le temps du parent. À l'instant t = k·q + k−1 + j, elle vaut y_b,j(q).
+- **La sortie** numéro b est choisie parmi les k sorties `Up(c, y_b,j)`, selon l'instant du parent. À l'instant t = k·q + k−1 + j, elle vaut y_b,j(q).
 - **La latence** est de k−1 instants : une trame n'est traitée qu'une fois complète.
 
 Cette écriture est une définition, non une façon de compiler : elle demande k·n retards et k·m sorties, là où la primitive utiliserait des tampons de trame. C'est la raison d'en faire une primitive.
@@ -834,7 +846,7 @@ Cette écriture est une définition, non une façon de compiler : elle demande k
 
 `switch(C₀, …, Cₖ)` est une primitive à venir. Elle reçoit k+1 circuits de mêmes arités et construit un circuit qui a une entrée de plus, le sélecteur s. À chaque instant, seul le circuit numéro s s'exécute ; chaque circuit garde son état, figé quand il n'est pas choisi.
 
-Le calcul l'exprime sans rien ajouter. L'horloge courante est notée ici p :
+Le calcul l'exprime sans rien ajouter. L'horloge courante est notée ici p, et k est le numéro du dernier circuit :
 
 ```
 ⟦switch(C₀ … Cₖ)⟧ₚ(s, x…) = (o…)
@@ -881,18 +893,14 @@ L'horloge racine et la dérivation ne sont pas des opérations que chaque algèb
 
 ```adt
 Clock ::= Root
-        | Derive(Clock, Rate)
-
-Rate  ::= Sig
-        | Count
-        | TblRate(n, G)
+        | Derive(Clock, Sig)
 ```
 
 - `Root` est l'horloge racine : `Root` = `Derive(Root, 1)`.
-- `Derive(Clock, Rate)` est l'horloge de ce parent et de cette cadence.
-- Une cadence est un signal entier du parent ; `Count` est la longueur des blocs, la cadence de **S** ; `TblRate(n, G)` est la cadence d'une table, identifiée par sa taille et le circuit de son générateur.
+- `Derive(Clock, Sig)` est l'horloge de ce parent et de cette cadence, qui est un signal entier du parent.
+- Deux cadences sont des signaux de l'horloge racine qui ont leur propre nœud : `Count`, noté count dans le texte, est la longueur des blocs, la cadence de **S** ; `TblRate(n, G)`, noté τ(n, G), est la cadence d'une table, identifiée par sa taille et le circuit de son générateur.
 
-Les opérations qui portent une horloge l'ont pour premier argument :
+Les opérations qui portent une horloge l'ont pour premier argument ; les trois dernières lignes n'en portent pas :
 
 ```adt
 Sig ::= Up(Clock, y)
@@ -907,9 +915,11 @@ Sig ::= Up(Clock, y)
       | Waveform(Clock, w)
       | FFun0(Clock, f)
       | ROTbl(n, gen)
+      | Count
+      | TblRate(n, G)
 ```
 
-`Up` et `Gen` sont les deux sorties ; `FFun0` est une fonction étrangère sans argument ; `ROTbl`, la table en lecture seule, est la seule de la liste qui n'a pas d'horloge.
+`Up` et `Gen` sont les deux sorties ; `FFun0` est une fonction étrangère sans argument ; `ROTbl`, la table en lecture seule, n'a pas d'horloge, non plus que les deux cadences `Count` et `TblRate`.
 
 Ce choix a trois raisons.
 
@@ -957,7 +967,7 @@ Le résultat est l'horloge courante sous laquelle la propagation a créé le gro
 
 L'horloge d'un signal dit sur quel repère il est défini. Le compilateur choisit en plus où il émet le calcul.
 
-- Une opération à horloge s'exécute sur son horloge, sans choix : un écho inaudible vieillit quand même. La règle `isConditionBoundary` de la branche en devient une conséquence.
+- Une opération à horloge s'exécute sur son horloge, sans choix : un écho inaudible vieillit quand même. La règle `isConditionBoundary` de la branche `master-dev-ocpp-od-fir-2-FIR20` en devient une conséquence.
 - Une opération sans mémoire peut s'exécuter sur son horloge, ou sur toute horloge descendante où elle est lue. Descendre vers une sélection, c'est l'appel par nécessité ; rester sur l'ancêtre d'une subdivision, c'est la sortie des invariants de boucle.
 - Les étapes des tables sont émises dans le code d'initialisation, dans leur ordre.
 
@@ -987,8 +997,6 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 
 ## Prises
 
-## Prises
-
 - Les constantes et les sliders sont des signaux de l'horloge racine. Aucune opération à horloge n'y est écrite.
 - Pendant les étapes des tables, un slider vaut sa valeur par défaut. Un générateur de table peut donc en lire un ; le compilateur actuel le refuse, c'est une extension.
 - La cadence est visible dans la sortie et dans les opérations à horloge, qui s'écrivent avec parent · cadence.
@@ -1000,6 +1008,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - L'horloge d'une table est identifiée par le circuit de la table, sa taille et son générateur. Son étape n'entre pas dans cette identité : c'est un attribut, calculé après la propagation selon les dépendances.
 - La sortie d'une table est `Gen(T, g)`, qui collecte toutes les valeurs du générateur ; la taille de la table est la valeur de sa cadence pendant son étape.
 - Deux opérations pour les deux tables : `ROTbl(n, gen)`, la table en lecture seule, un signal de l'horloge racine, sans horloge ; `WRTbl(k, n, gen, w, x)`, la table en lecture-écriture, une opération à horloge qui porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur.
+- L'état d'une table en lecture-écriture appartient au contexte où elle est écrite : deux `rwtable` identiques sous deux horloges courantes sont deux tables.
 - Une opération porte une horloge quand cette horloge ne se déduit pas de ses arguments.
 - La sortie d'une région est un signal de l'horloge parente.
 - La sortie rend la dernière valeur calculée par la région.
@@ -1007,14 +1016,14 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Un index de table et le sélecteur de `switch` sont traités de même : une obligation de certification, et une saturation quand la preuve échoue.
 - Dans le domaine d'horizon, chaque forme affine est écrite dans le temps de l'horloge de son signal ; seules la vue et la sortie convertissent.
 - Le facteur N d'un `upsampling` ou d'un `downsampling` est un signal constant ; seule la demande d'un `ondemand` varie.
-- Si la preuve qu'une cadence est une sélection ou une subdivision échoue, la certification échoue : il n'y a pas de repli pour une cadence.
+- Si la preuve qu'une cadence est un entier positif ou nul, et une sélection ou une subdivision pour une région du langage, échoue, la certification échoue : il n'y a pas de repli pour une cadence.
 - Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
 - L'horloge du résultat d'une opération sans mémoire est la borne inférieure de celles de ses arguments ; si c'est l'horloge vide, l'opération est refusée.
 - Deux horloges sont égales quand elles ont le même parent et la même cadence, comparée par identité d'arbre après mise en forme normale.
 - Un générateur de table ne capture que des signaux de l'horloge racine. C'est la seule erreur d'horloge possible pour l'utilisateur ; les règles d'horloge la détectent à la propagation.
 - Une fois la propagation réussie, les règles d'horloge vérifient un invariant que chaque transformation doit préserver ; sa vérification est une obligation de certification, et une violation est un défaut du compilateur.
-- Les projections d'un groupe partagent une horloge, la plus profonde de celles de ses définitions. Un groupe récursif ne porte pas d'horloge : c'est le `Mem` qui ferme sa boucle qui la porte.
+- Les projections d'un groupe partagent une horloge, la plus profonde de celles de ses définitions. Un groupe récursif ne porte pas d'horloge : c'est le `Mem` qui ferme sa boucle qui la porte, dès que cette boucle est effectivement lue.
 - Spécifier d'abord ; implémenter après la bascule de `master-dev`.
 
 ## En attente
@@ -1022,7 +1031,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - La primitive `interleave(n, m, C)`, à introduire à terme pour l'efficacité. Le calcul la définit déjà par traduction (voir les exemples) ; il n'a besoin d'aucun concept nouveau.
 - Les règles du domaine d'horizon (encadrements, horizon d'une horloge, conversions de la vue et de la sortie) sont proposées ; elles sont à valider contre `HorizonAlgebra` lors de l'implémentation.
 - La vectorisation des régions : une boucle par horloge (voir « Où le code est exécuté »). À réaliser après le mode scalaire.
-- La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples). Son sélecteur est traité comme l'index d'une table : une obligation de certification, et une saturation quand la preuve échoue.
+- La primitive `switch(C₀, …, Cₖ)`, à introduire à terme, pour le code et pour l'intervalle de sa sortie. Même traitement : le calcul la définit par traduction (voir les exemples).
 
 ## Ouvertes
 
