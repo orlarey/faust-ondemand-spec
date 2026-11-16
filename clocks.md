@@ -1,6 +1,6 @@
 ---
 title: Les horloges de Faust
-subtitle: Spécification, brouillon v47
+subtitle: Spécification, brouillon v48
 author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
@@ -57,7 +57,7 @@ Toute horloge c a :
 - une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants négatifs du parent, avant que celui-ci ait commencé.
 :::
 
-Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`.
+Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`. Une seule horloge fait exception à cette règle et a plusieurs parents : l'horloge vide, présentée avec les ancêtres.
 
 On note p · r l'horloge dont le parent est p et la cadence r :
 
@@ -194,14 +194,29 @@ Pour remonter d'une horloge c à l'un de ses ancêtres a, on compose les remont�
 
 Deux horloges quelconques ont toujours un plus proche ancêtre commun : ⊤ est l'ancêtre de toutes, et la chaîne des ancêtres d'une horloge est finie. Si l'une des deux est l'ancêtre de l'autre, elles sont **compatibles**. Sinon elles sont **incompatibles** : ce que l'on calcule sur l'une et sur l'autre ne peut se rencontrer qu'après être remonté jusqu'à cet ancêtre commun.
 
-Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle. On ajoute à cet ordre un plus petit élément, noté ⊥, placé par construction en dessous de toutes les horloges. Ce n'est pas une horloge au sens de la définition : il n'a ni parent ni cadence. On l'appelle l'**horloge vide**, et on le lit comme ce que deux horloges incompatibles ont en commun : rien. **[D]**
+Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle.
 
-Avec cet élément, les horloges forment un **treillis** :
+À l'autre bout se trouve l'**horloge vide**, notée ⊥ : celle qui ne tourne jamais. Une horloge c · 0, dont la cadence est toujours nulle, n'a aucun instant, quelle que soit c. On identifie toutes ces horloges : **[D]**
+
+```math
+⊥ = c · 0 \qquad\text{pour toute horloge } c
+```
+
+L'horloge vide est donc construite sur toutes les autres : chaque horloge est l'un de ses parents, et ⊥ ≤ c pour toute c. C'est la seule horloge qui ait plusieurs parents, comme l'horloge racine est la seule à être son propre parent :
+
+| Horloge | Son parent | Sa cadence |
+| :--- | :--- | :--- |
+| ⊤, l'horloge racine | elle-même | 1 |
+| ⊥, l'horloge vide | toutes les horloges | 0 |
+
+Une horloge construite sur l'horloge vide ne tourne jamais non plus : ⊥ · r = ⊥. Sa profondeur n'est pas définie.
+
+Avec l'horloge vide, les horloges forment un **treillis** :
 
 - la borne supérieure de deux horloges est leur plus proche ancêtre commun ;
-- la borne inférieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est ⊥, puisque aucune horloge n'est construite à la fois sur l'une et sur l'autre.
+- la borne inférieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est ⊥, la seule horloge construite à la fois sur l'une et sur l'autre.
 
-Un calcul dont les arguments sont sur des horloges incompatibles ne peut être fait nulle part : son horloge serait ⊥. Les règles d'horloge de `clocked-signals.md` le refusent. L'horloge vide ne se confond pas avec une horloge p · 0, de cadence toujours nulle : celle-ci n'a pas d'instant non plus, mais c'est une horloge, qui a un parent et n'est en dessous que de ses propres ancêtres.
+L'horloge vide est compatible avec toutes les autres. Deux horloges incompatibles, elles, n'ont aucun instant commun : un calcul dont les arguments sont sur des horloges incompatibles ne peut être fait à aucun instant, et les règles d'horloge de `clocked-signals.md` le refusent. Un calcul placé sur l'horloge vide est au contraire permis : il n'est simplement jamais exécuté.
 
 Voici le treillis des horloges d'un programme :
 
@@ -227,7 +242,7 @@ flowchart TD
   C --> X
 ```
 
-Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle, ou à ⊥. Ce sont les horloges du programme de la section précédente, auquel on ajoute un `ondemand`, dont la cadence est la demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`.
+Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges du programme de la section précédente, auquel on ajoute un `ondemand`, dont la cadence est la demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`.
 
 Quelques exemples lus sur ce dessin :
 
@@ -252,5 +267,6 @@ Ces horloges décrivent une exécution synchrone et causale, et elles reprennent
 - Une horloge a un parent et une cadence ; l'horloge racine est son propre parent, de cadence 1.
 - L'instant courant d'une horloge est le dernier de ses instants qui a eu lieu. Tant qu'elle n'a pas commencé, elle en est à l'instant −1.
 - L'horloge racine a pour instants les étapes du programme : une par table, puis une par bloc. Les blocs ne sont pas une horloge à part.
-- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. L'horloge racine ⊤ en est le plus grand élément. Un plus petit élément ⊥, l'horloge vide, est ajouté à l'ordre : c'est la borne inférieure de deux horloges incompatibles.
+- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. L'horloge racine ⊤ en est le plus grand élément.
+- L'horloge vide ⊥ en est le plus petit : ⊥ = c · 0 pour toute horloge c. C'est la seule horloge qui ait plusieurs parents, et la borne inférieure de deux horloges incompatibles. Un calcul placé sur elle n'est jamais exécuté.
 - Spécifier d'abord ; implémenter après la bascule de `master-dev`.
