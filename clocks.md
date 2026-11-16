@@ -54,9 +54,9 @@ Toute horloge c a :
 
 - un **parent**, parent(c), qui est une horloge ;
 - une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants négatifs du parent, avant que celui-ci ait commencé.
+:::
 
 Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`.
-:::
 
 On note p · r l'horloge dont le parent est p et la cadence r :
 
@@ -202,7 +202,9 @@ Avec cet élément, les horloges forment un **treillis** :
 
 Un calcul dont les arguments sont sur des horloges incompatibles ne peut être fait nulle part : son horloge serait ⊥. Les règles d'horloge de `clocked-signals.md` le refusent. L'horloge vide ne se confond pas avec une horloge p · 0, de cadence toujours nulle : celle-ci n'a pas d'instant non plus, mais c'est une horloge, qui a un parent et n'est en dessous que de ses propres ancêtres.
 
-```mermaid "Le treillis des horloges d'un programme" \label{fig:treillis}
+Voici le treillis des horloges d'un programme :
+
+```mermaid
 flowchart TD
   R["⊤<br>l'horloge racine<br>une étape par table, puis une par bloc"]
   T1["T₁<br>les instants d'une table"]
@@ -218,10 +220,10 @@ flowchart TD
   S --> A
   S --> B
   A --> C
-  T1 --> X
-  T2 --> X
+  T1 ----> X
+  T2 ----> X
+  B ---> X
   C --> X
-  B --> X
 ```
 
 Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle, ou à ⊥. Ce sont les horloges du programme de la section précédente, auquel on ajoute un `ondemand`, dont la cadence est la demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`.
