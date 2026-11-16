@@ -1,6 +1,6 @@
 ---
 title: Les horloges de Faust
-subtitle: Spécification, brouillon v45
+subtitle: Spécification, brouillon v47
 date: 15 novembre 2026
 document-style: article-a4
 language: fr
@@ -84,7 +84,7 @@ La fonction parent est ainsi définie partout, et l'horloge racine en est le seu
 
 Le temps de l'horloge racine n'est pas déduit d'un autre : il est donné, et c'est l'hôte du programme qui le fait avancer.
 
-Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur k s'écrit ⊤ · r₁ · r₂ · … · rₖ : elle est déterminée par la suite de ses cadences.
+Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur m s'écrit ⊤ · r₁ · r₂ · … · rₘ : elle est déterminée par la suite de ses cadences.
 
 # La remontée
 
@@ -156,20 +156,20 @@ Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et un
 
 Les instants où tourne l'horloge racine sont les **étapes** du programme : d'abord une étape par table à remplir, puis une étape par bloc. **[D]**
 
-Prenons un programme qui a deux tables. La première à être calculée, T₁, a N valeurs. La seconde, T₂, en a M, et doit être calculée après la première. Viennent ensuite les blocs : chaque appel de la méthode `compute` en traite un, de taille B₀, puis B₁, etc. On note aussi T₁ et T₂ les horloges des deux tables, et **S** celle des échantillons.
+Prenons un programme qui a deux tables. La première à être calculée, T₁, a L₁ valeurs. La seconde, T₂, en a L₂, et doit être calculée après la première. Viennent ensuite les blocs : chaque appel de la méthode `compute` en traite un, de taille B₀, puis B₁, etc. On note aussi T₁ et T₂ les horloges des deux tables, et **S** celle des échantillons.
 
 ```
 étape t de l'horloge racine :   0     1     2     3     4    …
 ce que l'on y calcule       :   T₁    T₂    bloc  bloc  bloc
-cadence de T₁               :   N     0     0     0     0    …
-cadence de T₂               :   0     M     0     0     0    …
+cadence de T₁               :   L₁    0     0     0     0    …
+cadence de T₂               :   0     L₂    0     0     0    …
 cadence de S                :   0     0     B₀    B₁    B₂   …
 ```
 
 Ces trois horloges ont l'horloge racine pour parent, et ne diffèrent que par leur cadence :
 
-- celle de T₁ a pour cadence N, puis 0 indéfiniment : ses N instants ont tous lieu pendant l'étape 0 ;
-- celle de T₂ a pour cadence 0, puis M, puis 0 indéfiniment : ses M instants ont tous lieu pendant l'étape 1, quand T₁ est remplie ;
+- celle de T₁ a pour cadence L₁, puis 0 indéfiniment : ses L₁ instants ont tous lieu pendant l'étape 0 ;
+- celle de T₂ a pour cadence 0, puis L₂, puis 0 indéfiniment : ses L₂ instants ont tous lieu pendant l'étape 1, quand T₁ est remplie ;
 - celle des échantillons, **S**, a pour cadence 0, 0, B₀, B₁, etc. Pendant les étapes des tables elle n'a pas commencé, et elle en est à l'instant −1 ; elle a ensuite, pendant chaque étape, autant d'instants que le bloc a d'échantillons.
 
 Ces horloges de profondeur 1 sont les **repères de base** :
