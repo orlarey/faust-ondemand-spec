@@ -312,7 +312,7 @@ j  = le numéro de l'instant de c₁, modulo N : il repart de 0 à chaque instan
 c₂ = c₁ · (j < x)        une sélection de c₁
 ```
 
-Ici x est un signal de k, qui donne le nombre d'exécutions voulu. Un circuit traduit sous c₂ s'exécute x fois pendant chaque instant de k, tant que x ≤ N. Dans le langage : `upsampling(ondemand(C)(j < x))(N)`. Chaque niveau reste pur : les lois s'appliquent, la fréquence vue à chaque niveau est définie, et le coût est borné par N.
+Ici x est un signal de k, qui donne le nombre d'exécutions voulu. Un circuit traduit sous c₂ s'exécute x fois pendant chaque instant de k, tant que x ≤ N. Dans le langage : `upsampling(ondemand(C)(j < x))(N)`, où le compteur j est écrit dans le corps de l'`upsampling`. Chaque niveau reste pur : les lois s'appliquent, la fréquence vue à chaque niveau est définie, et le coût est borné par N.
 
 ## La règle de la région
 
@@ -461,7 +461,7 @@ Une sortie `Up` ne garderait que la dernière des L valeurs. La table les garde 
 `WRTbl(k, L, gen, w, x)`
 :   La table en lecture-écriture : une mémoire sur l'horloge k, qui part de ce tableau et reçoit les écritures.
 
-`RDTbl(table, index)`
+`RDTbl(tbl, i)`
 :   Une opération sans mémoire : indexer la table.
 
 `Gen` est à la table ce que `Up` est à la région : `Up(p · r, y)` rend la dernière valeur, `Gen(⊤ · τ(L, G), g)` les rend toutes.
@@ -620,7 +620,7 @@ process = ramp, ondemand(ramp);   // deux rampes distinctes
 - au niveau principal, un retard s'écrit `Delay(⊤ · count, x, d)`, la cadence étant la longueur des blocs ;
 - l'horloge racine s'écrivant elle-même ⊤ · 1, la règle « aucune opération à horloge sur l'horloge racine » ne découle pas de l'écriture : c'est une condition des règles d'horloge.
 
-La cadence ne joue pas le même rôle dans les deux cas. Dans une sortie, elle entre dans le calcul de la valeur. Dans une opération à horloge, elle dit seulement **quand** l'opération s'exécute : sa valeur, dans son propre repère, ne dépend que du nombre d'instants écoulés.
+La cadence ne joue pas le même rôle dans les deux cas. Dans une sortie, elle entre dans le calcul de la valeur. Dans une opération à horloge, elle dit **quand** l'opération s'exécute : dans son propre repère, l'opération ne compte que les instants écoulés. La cadence n'entre dans sa valeur que par la vue de ses arguments, quand ils viennent d'un ancêtre.
 
 ## Les règles d'inférence
 
@@ -839,7 +839,7 @@ output0[i] = fRec0[0];
 
 ## Entrelacement
 
-`interleave(n, m, C)` est une primitive à venir. Elle transforme un circuit C à k·n entrées et k·m sorties en un circuit à n entrées et m sorties, dont chaque signal porte k signaux entrelacés ; k se déduit des arités de C. C s'exécute une fois tous les k instants, quand une trame est complète. Avec n = m = 1 et k = 4, (a0, b0, c0, d0) étant les sorties de C pour la première trame :
+`interleave(n, m, C)` est une primitive à venir. Cet exemple a ses propres lettres : n et m sont des nombres d'entrées et de sorties, k un nombre de signaux entrelacés. Elle transforme un circuit C à k·n entrées et k·m sorties en un circuit à n entrées et m sorties, dont chaque signal porte k signaux entrelacés ; k se déduit des arités de C. C s'exécute une fois tous les k instants, quand une trame est complète. Avec n = m = 1 et k = 4, (a0, b0, c0, d0) étant les sorties de C pour la première trame :
 
 | instant | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -847,7 +847,7 @@ output0[i] = fRec0[0];
 | C reçoit | | | | x0 x1 x2 x3 | | | | x4 x5 x6 x7 |
 | sortie | 0 | 0 | 0 | a0 | b0 | c0 | d0 | a1 |
 
-Le calcul l'exprime sans rien ajouter. Cet exemple a ses propres lettres : n et m sont les nombres d'entrées et de sorties, k le nombre de signaux entrelacés. L'horloge courante y est donc notée p ; t est un instant de p, q un instant de l'horloge de C :
+Le calcul l'exprime sans rien ajouter. La lettre k étant prise, l'horloge courante est notée p ; t est un instant de p, q un instant de l'horloge de C :
 
 ```
 ⟦interleave(n, m, C)⟧ₚ(x₀ … xₙ₋₁) = (o₀ … oₘ₋₁)
@@ -1030,7 +1030,7 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Les horloges naissent à la propagation, qui transporte une horloge courante. Deux règles la changent : celle de la région et celle de la table.
 - Une table est une construction qui reçoit des circuits, sa taille et son générateur, et non une primitive qui reçoit des signaux. `rdtable(L, G)` rend un circuit à une entrée, `rwtable(L, G)` un circuit à trois entrées. La forme où la taille et le générateur arrivent par des fils disparaît.
 - L'horloge du générateur dérive toujours de l'horloge racine. Quand une table est lue ou écrite dans une région, son contenu initial est calculé en dehors : la région ne commande que la lecture et l'écriture.
-- L'horloge d'une table est identifiée par le circuit de la table, sa taille et son générateur. Son étape n'entre pas dans cette identité : c'est un attribut, calculé après la propagation selon les dépendances.
+- L'horloge d'une table est identifiée par le circuit de la table, sa taille et son générateur. Son étape n'entre pas dans cette identité : c'est un attribut, attribué selon les dépendances quand la propagation de son générateur s'achève.
 - La sortie d'une table est `Gen(T, g)`, qui collecte toutes les valeurs du générateur ; la taille de la table est la valeur de sa cadence pendant son étape.
 - Deux opérations pour les deux tables : `ROTbl(L, gen)`, la table en lecture seule, un signal de l'horloge racine, sans horloge ; `WRTbl(k, L, gen, w, x)`, la table en lecture-écriture, une opération à horloge qui porte l'horloge courante ; son contenu initial est la sortie `Gen(T, g)` de son générateur.
 - L'état d'une table en lecture-écriture appartient au contexte où elle est écrite : deux `rwtable` identiques sous deux horloges courantes sont deux tables.

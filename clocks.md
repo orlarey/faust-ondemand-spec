@@ -49,12 +49,12 @@ La section « Les étapes du programme » dit quelles horloges a un programme Fa
 Une horloge est donnée par deux choses : le repère dans lequel elle est placée, qui est son horloge parente, et le nombre de ses instants qui ont lieu pendant chaque instant de celle-ci, qui est sa cadence.
 
 ::: definition [Horloge]
-Le temps d'une **horloge** est ℤ, comme le temps de Faust : ses instants sont les entiers. Elle commence à l'instant 0. Ses instants positifs ou nuls sont ceux où elle tourne ; ses instants négatifs sont ceux d'avant son démarrage, où il ne se passe rien. **[D]**
+Le temps d'une **horloge** est ℤ, comme le temps de Faust : ses instants sont les entiers. Elle commence à l'instant 0, et tourne à partir de là pendant ℕ, ou pendant un début de ℕ si elle n'a qu'un nombre fini d'instants. Ses instants négatifs sont ceux d'avant son démarrage, où il ne se passe rien. **[D]**
 
 Toute horloge c a :
 
 - un **parent**, parent(c), qui est une horloge ;
-- une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants négatifs du parent, avant que celui-ci ait commencé.
+- une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants où le parent ne tourne pas : ses instants négatifs, avant qu'il ait commencé, et ceux qu'il n'atteint jamais s'il n'en a qu'un nombre fini.
 :::
 
 Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`. Une seule horloge fait exception à cette règle et a plusieurs parents : l'horloge vide, présentée avec les ancêtres.
