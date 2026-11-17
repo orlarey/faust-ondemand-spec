@@ -1,6 +1,6 @@
 ---
 title: Les horloges de Faust
-subtitle: Spécification, brouillon v48
+subtitle: Spécification, brouillon v49
 author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
@@ -15,7 +15,7 @@ language: fr
 - **La remontée** — convertir le temps du parent en temps de l'enfant, et inversement.
 - **Sélection et subdivision** — les deux cas remarquables.
 - **Les étapes du programme** — les tables, puis les blocs.
-- **Les ancêtres** — la chaîne d'une horloge, et le treillis.
+- **Les ancêtres** — la chaîne d'une horloge, et l'arbre des horloges.
 - **Parenté avec les langages synchrones** — ce qui est repris.
 - **Décisions** — ce qui est pris.
 :::
@@ -57,7 +57,7 @@ Toute horloge c a :
 - une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants où le parent ne tourne pas : ses instants négatifs, avant qu'il ait commencé, et ceux qu'il n'atteint jamais s'il n'en a qu'un nombre fini.
 :::
 
-Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`. Une seule horloge fait exception à cette règle et a plusieurs parents : l'horloge vide, présentée avec les ancêtres.
+Deux horloges sont **égales** quand elles ont le même parent et la même cadence. C'est ici une égalité de fonctions. Dans un programme, où la cadence est un signal, cette égalité est décidée sur les arbres de signaux : c'est l'objet de `clocked-signals.md`.
 
 On note p · r l'horloge dont le parent est p et la cadence r :
 
@@ -67,12 +67,20 @@ On note p · r l'horloge dont le parent est p et la cadence r :
 
 Toute horloge s'écrit ainsi : c = parent(c) · cadence(c).
 
+**[D] La cadence 1 est neutre.** Une horloge de cadence 1 aurait exactement un instant pendant chaque instant de son parent : elle ne s'en distinguerait pas. Ce n'est donc pas une nouvelle horloge :
+
+```math
+p · 1 = p \qquad\text{pour toute horloge } p
+```
+
+Les horloges que l'on construit sur p sont ainsi les p · r dont la cadence r n'est pas la cadence 1.
+
 # L'horloge racine
 
-Toute horloge est construite sur une autre, son parent. Il en faut donc une première pour amorcer le système : une horloge sur laquelle toutes les autres sont construites. Pour que la définition précédente s'applique aussi à elle, sans cas particulier, on en fait son propre parent.
+Toute horloge est construite sur une autre, son parent. Il en faut donc une première pour amorcer le système : une horloge sur laquelle toutes les autres sont construites. Pour que la définition précédente s'applique aussi à elle, sans cas particulier, on en fait son propre parent. Sa cadence est alors la cadence neutre.
 
 ::: definition [Horloge racine]
-L'**horloge racine**, notée ⊤, est l'horloge qui est son propre parent et dont la cadence vaut 1 à chaque instant où elle tourne :
+L'**horloge racine**, notée ⊤, est l'horloge qui est son propre parent. Sa cadence vaut donc 1 à chaque instant où elle tourne :
 
 ```math
 \mathit{parent}(⊤) = ⊤ \qquad \mathit{cadence}(⊤) = 1 \qquad\text{c'est-à-dire}\qquad ⊤ = ⊤ · 1
@@ -81,11 +89,11 @@ L'**horloge racine**, notée ⊤, est l'horloge qui est son propre parent et don
 On demande que toute horloge atteigne ⊤ en un nombre fini de passages au parent : il n'y a ni chaîne infinie de parents, ni cycle.
 :::
 
-La fonction parent est ainsi définie partout, et l'horloge racine en est le seul point fixe. C'est la convention de la racine d'un système de fichiers, qui est son propre répertoire parent.
+La fonction parent est ainsi définie partout, et l'horloge racine en est le seul point fixe : c'est aussi la seule horloge dont la cadence est 1, et l'équation ⊤ = ⊤ · 1 est le cas p = ⊤ de la loi p · 1 = p. C'est la convention de la racine d'un système de fichiers, qui est son propre répertoire parent.
 
 Le temps de l'horloge racine n'est pas déduit d'un autre : il est donné, et c'est l'hôte du programme qui le fait avancer.
 
-Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur m s'écrit ⊤ · r₁ · r₂ · … · rₘ : elle est déterminée par la suite de ses cadences.
+Le nombre de passages au parent qu'il faut pour atteindre ⊤ est la **profondeur** de l'horloge. Une horloge de profondeur m s'écrit ⊤ · r₁ · r₂ · … · rₘ, aucune de ces cadences n'étant la cadence 1 : elle est déterminée par la suite de ses cadences.
 
 # La remontée
 
@@ -151,7 +159,7 @@ Subdivision
 
 L'horloge d'un `ondemand` ou d'un `downsampling` est une sélection ; celle d'un `upsampling` est une subdivision. Dans les deux exemples de la section précédente, la cadence n'est ni l'une ni l'autre. Celle de l'horloge racine est les deux à la fois.
 
-Une horloge p · 1, dont la cadence vaut 1 partout, a le même temps que p et une remontée identité. Elle n'est pas égale à p pour autant, sauf si p est l'horloge racine : son parent est p, alors que celui de p est parent(p).
+La cadence 1 est à la fois une sélection et une subdivision. Avec elle, fait(t) = t + 1 et la remontée est l'identité : on retrouve que p · 1 a les mêmes instants que p, et n'est autre que p.
 
 # Les étapes du programme
 
@@ -194,31 +202,13 @@ Pour remonter d'une horloge c à l'un de ses ancêtres a, on compose les remont�
 
 Deux horloges quelconques ont toujours un plus proche ancêtre commun : ⊤ est l'ancêtre de toutes, et la chaîne des ancêtres d'une horloge est finie. Si l'une des deux est l'ancêtre de l'autre, elles sont **compatibles**. Sinon elles sont **incompatibles** : ce que l'on calcule sur l'une et sur l'autre ne peut se rencontrer qu'après être remonté jusqu'à cet ancêtre commun.
 
-Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle.
+Pour l'ordre ≤, l'horloge racine est le plus grand élément : toutes les horloges sont construites sur elle. Les horloges forment un **arbre**, dont elle est la racine.
 
-À l'autre bout se trouve l'**horloge vide**, notée ⊥ : celle qui ne tourne jamais. Une horloge c · 0, dont la cadence est toujours nulle, n'a aucun instant, quelle que soit c. On identifie toutes ces horloges : **[D]**
+**[D] Il n'y a pas de plus petit élément.** Deux horloges compatibles ont une plus profonde ; deux horloges incompatibles n'ont rien en dessous d'elles deux. Un calcul dont les arguments sont sur des horloges incompatibles ne peut donc être placé sur aucune horloge, et les règles d'horloge de `clocked-signals.md` le refusent.
 
-```math
-⊥ = c · 0 \qquad\text{pour toute horloge } c
-```
+Une horloge p · 0, de cadence toujours nulle, n'a rien de particulier dans cet arbre : elle a son parent, et ne tourne jamais.
 
-L'horloge vide est donc construite sur toutes les autres : chaque horloge est l'un de ses parents, et ⊥ ≤ c pour toute c. C'est la seule horloge qui ait plusieurs parents, comme l'horloge racine est la seule à être son propre parent :
-
-| Horloge | Son parent | Sa cadence |
-| :--- | :--- | :--- |
-| ⊤, l'horloge racine | elle-même | 1 |
-| ⊥, l'horloge vide | toutes les horloges | 0 |
-
-Une horloge construite sur l'horloge vide ne tourne jamais non plus : ⊥ · r = ⊥. Sa profondeur n'est pas définie.
-
-Avec l'horloge vide, les horloges forment un **treillis** :
-
-- la borne supérieure de deux horloges est leur plus proche ancêtre commun ;
-- la borne inférieure de deux horloges compatibles est la plus profonde des deux ; celle de deux horloges incompatibles est ⊥, la seule horloge construite à la fois sur l'une et sur l'autre.
-
-L'horloge vide est compatible avec toutes les autres. Deux horloges incompatibles, elles, n'ont aucun instant commun : un calcul dont les arguments sont sur des horloges incompatibles ne peut être fait à aucun instant, et les règles d'horloge de `clocked-signals.md` le refusent. Un calcul placé sur l'horloge vide est au contraire permis : il n'est simplement jamais exécuté.
-
-Voici le treillis des horloges d'un programme :
+Voici l'arbre des horloges d'un programme :
 
 ```mermaid
 flowchart TD
@@ -229,29 +219,24 @@ flowchart TD
   A["S · h<br>un ondemand"]
   B["S · 4<br>un upsampling"]
   C["S · h · 2<br>un upsampling dans l'ondemand"]
-  X["⊥<br>l'horloge vide"]
   R --> T1
   R --> T2
   R --> S
   S --> A
   S --> B
   A --> C
-  T1 ----> X
-  T2 ----> X
-  B ---> X
-  C --> X
 ```
 
-Le dessin place les plus grandes horloges en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges du programme de la section précédente, auquel on ajoute un `ondemand`, dont la cadence est la demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`.
+Le dessin place la racine en haut : chaque flèche descend d'une horloge à une horloge construite sur elle. Ce sont les horloges du programme de la section précédente, auquel on ajoute un `ondemand`, dont la cadence est la demande h, un `upsampling` par 4, et un `upsampling` par 2 placé dans l'`ondemand`.
 
 Quelques exemples lus sur ce dessin :
 
-| Horloges | Relation | Borne supérieure | Borne inférieure |
+| Horloges | Relation | Plus proche ancêtre commun | La plus profonde |
 | :--- | :--- | :--- | :--- |
-| **S** et **S** · h · 2 | **S** · h · 2 ≤ **S** | **S** | **S** · h · 2 |
-| ⊤ et T₂ | T₂ ≤ ⊤ | ⊤ | T₂ |
-| **S** · h et **S** · 4 | incompatibles | **S** | ⊥ |
-| T₁ et **S** · h · 2 | incompatibles | ⊤ | ⊥ |
+| **S** et **S** · h · 2 | compatibles : **S** · h · 2 ≤ **S** | **S** | **S** · h · 2 |
+| ⊤ et T₂ | compatibles : T₂ ≤ ⊤ | ⊤ | T₂ |
+| **S** · h et **S** · 4 | incompatibles | **S** | aucune |
+| T₁ et **S** · h · 2 | incompatibles | ⊤ | aucune |
 
 # Parenté avec les langages synchrones
 
@@ -264,9 +249,10 @@ Ces horloges décrivent une exécution synchrone et causale, et elles reprennent
 # Décisions
 
 - Le temps d'une horloge est ℤ, comme le temps de Faust. Elle commence à l'instant 0, et tourne pendant ℕ ou un début de ℕ ; ses instants négatifs sont ceux d'avant son démarrage.
-- Une horloge a un parent et une cadence ; l'horloge racine est son propre parent, de cadence 1.
+- Une horloge a un parent et une cadence ; l'horloge racine est son propre parent.
+- La cadence 1 est neutre : p · 1 = p pour toute horloge p. L'horloge racine est la seule dont la cadence est 1.
 - L'instant courant d'une horloge est le dernier de ses instants qui a eu lieu. Tant qu'elle n'a pas commencé, elle en est à l'instant −1.
 - L'horloge racine a pour instants les étapes du programme : une par table, puis une par bloc. Les blocs ne sont pas une horloge à part.
-- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. L'horloge racine ⊤ en est le plus grand élément.
-- L'horloge vide ⊥ en est le plus petit : ⊥ = c · 0 pour toute horloge c. C'est la seule horloge qui ait plusieurs parents, et la borne inférieure de deux horloges incompatibles. Un calcul placé sur elle n'est jamais exécuté.
+- L'ordre sur les horloges se note c ≤ a quand a est un ancêtre de c. Les horloges forment un arbre, dont l'horloge racine ⊤ est le plus grand élément.
+- Il n'y a pas de plus petit élément : deux horloges incompatibles n'ont rien en dessous d'elles deux. Une horloge p · 0 est une horloge ordinaire, qui ne tourne jamais.
 - Spécifier d'abord ; implémenter après la bascule de `master-dev`.

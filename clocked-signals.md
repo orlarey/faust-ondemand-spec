@@ -1,6 +1,6 @@
 ---
 title: Les signaux à horloge de Faust
-subtitle: Spécification, brouillon v48
+subtitle: Spécification, brouillon v49
 author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
@@ -63,7 +63,7 @@ Il reprend de `clocks.md` les notions suivantes, qu'il rappelle au besoin :
 | Notation | Sens |
 | :--- | :--- |
 | temps d'une horloge | ℤ ; elle commence à l'instant 0, et ses instants négatifs sont ceux d'avant son démarrage |
-| p · r | l'horloge de parent p et de cadence r |
+| p · r | l'horloge de parent p et de cadence r ; la cadence 1 est neutre : p · 1 = p |
 | ⊤ | l'horloge racine, dont les instants sont les étapes du programme |
 | repère de base | une horloge de profondeur 1, dont le parent est ⊤ : celle d'une table, ou celle des échantillons |
 | **S** | l'horloge des échantillons |
@@ -73,8 +73,7 @@ Il reprend de `clocks.md` les notions suivantes, qu'il rappelle au besoin :
 | π(n), π(c → a) | la remontée, d'une horloge à son parent ou à l'un de ses ancêtres |
 | ancêtre | les ancêtres de c sont c elle-même, son parent, et ainsi de suite jusqu'à ⊤ |
 | c ≤ a | a est un ancêtre de c |
-| compatibles, incompatibles | deux horloges dont l'une est l'ancêtre de l'autre, ou non |
-| ⊥ | l'horloge vide, qui ne tourne jamais : ⊥ = c · 0 pour toute horloge c ; borne inférieure de deux horloges incompatibles |
+| compatibles, incompatibles | deux horloges dont l'une est l'ancêtre de l'autre, ou non ; des horloges compatibles ont une plus profonde |
 | étape | un instant de l'horloge racine : le remplissage d'une table, ou un bloc |
 | sélection, subdivision | une cadence toujours ≤ 1, toujours ≥ 1 |
 
@@ -164,7 +163,7 @@ Plusieurs choses en découlent.
 - **Les cadences des repères de base sont des signaux aussi.** La longueur de chaque bloc, donnée par l'hôte, et la cadence de chaque table, donnée par le programme, sont des signaux de l'horloge racine.
 - **Elle est transformée comme tout signal.** Une horloge contient ses cadences ; une transformation qui réécrit les signaux réécrit donc aussi les horloges. Cela vaut pour la forme normale ; la forme de calcul, elle, ne réécrit pas une cadence (voir « Les deux formes »).
 
-**[D] Égalité.** Deux horloges sont égales quand elles ont le même parent et le même signal de cadence, comparé par identité d'arbre après mise en forme normale. C'est une approximation décidable de l'égalité des fonctions : deux cadences de même valeur mais d'arbres différents donnent deux horloges différentes. La cadence d'une table est comparée autrement, par la taille et le circuit de son générateur (voir « Une table et son repère »).
+**[D] Égalité.** Deux horloges sont égales quand elles ont le même parent et le même signal de cadence, comparé par identité d'arbre après mise en forme normale. C'est une approximation décidable de l'égalité des fonctions : deux cadences de même valeur mais d'arbres différents donnent deux horloges différentes. La forme normale applique la loi p · 1 = p quand la cadence est la constante 1. La cadence d'une table est comparée autrement, par la taille et le circuit de son générateur (voir « Une table et son repère »).
 
 # La sémantique
 
@@ -325,7 +324,7 @@ Le premier signal d'entrée donne la cadence, et le corps est propagé avec l'ho
 
 Trois choses s'y passent :
 
-1. la cadence r, un signal d'un ancêtre de k, forme la nouvelle horloge k · r ;
+1. la cadence r, un signal d'un ancêtre de k, forme la nouvelle horloge k · r. Si r est la constante 1, c'est k elle-même, et la région disparaît : ses sorties sont rendues telles quelles ;
 2. le corps C est propagé avec cette horloge courante : tous ses retards la recevront ;
 3. chaque sortie est ramenée sur l'horloge k par une sortie `Up`.
 
@@ -615,10 +614,11 @@ process = ramp, ondemand(ramp);   // deux rampes distinctes
 
 `ROTbl(L, gen)` n'en porte pas : son horloge est celle de ses arguments, l'horloge racine. La condition « aucune opération à horloge sur l'horloge racine » reste ainsi sans exception.
 
-**[D] La cadence est visible.** Une opération à horloge s'écrit avec son horloge sous la forme parent · cadence : `Delay(p · r, x, d)`, `Mem(p · r, x)`, comme la sortie `Up(p · r, y)`. Deux conséquences :
+**[D] La cadence est visible.** Une opération à horloge s'écrit avec son horloge sous la forme parent · cadence : `Delay(p · r, x, d)`, `Mem(p · r, x)`, comme la sortie `Up(p · r, y)`. Trois conséquences :
 
 - au niveau principal, un retard s'écrit `Delay(⊤ · count, x, d)`, la cadence étant la longueur des blocs ;
-- l'horloge racine s'écrivant elle-même ⊤ · 1, la règle « aucune opération à horloge sur l'horloge racine » ne découle pas de l'écriture : c'est une condition des règles d'horloge.
+- l'horloge racine s'écrivant elle-même ⊤ · 1, la règle « aucune opération à horloge sur l'horloge racine » ne découle pas de l'écriture : c'est une condition des règles d'horloge ;
+- la cadence 1 étant neutre, une opération écrite avec p · 1 est la même opération écrite avec p.
 
 La cadence ne joue pas le même rôle dans les deux cas. Dans une sortie, elle entre dans le calcul de la valeur. Dans une opération à horloge, elle dit **quand** l'opération s'exécute : dans son propre repère, l'opération ne compte que les instants écoulés. La cadence n'entre dans sa valeur que par la vue de ses arguments, quand ils viennent d'un ancêtre.
 
@@ -687,9 +687,9 @@ Deux jugements : ⊢ s : c se lit « s est un signal d'horloge c », et ⊢ c ok
 ```
 
 - v est une constante, u un slider, x une entrée de `process` ; count et τ(L, G) sont les cadences des repères de base.
-- (op) : les horloges des arguments doivent être compatibles deux à deux, ce que note compat(c₁, c₂, …) : elles forment alors une chaîne. L'horloge du résultat est leur borne inférieure, notée ⊓ : la plus profonde. Si deux arguments sont sur des horloges incompatibles, la règle échoue. Le résultat peut être l'horloge vide ⊥, pour un calcul écrit dans une région de cadence 0 : ce calcul est permis, il n'est simplement jamais exécuté. C'est la règle de temporalité de `ATTRIBUTES.md`, qui prend le join des arguments consultés : l'ordre y est seulement écrit dans l'autre sens, la variabilité croissant avec la profondeur.
+- (op) : les horloges des arguments doivent être compatibles deux à deux, ce que note compat(c₁, c₂, …) : elles forment alors une chaîne. L'horloge du résultat est la plus profonde, notée c₁ ⊓ c₂ ⊓ …. Si deux arguments sont sur des horloges incompatibles, la règle échoue. C'est la règle de temporalité de `ATTRIBUTES.md`, qui prend le join des arguments consultés : l'ordre y est seulement écrit dans l'autre sens, la variabilité croissant avec la profondeur.
 - (mem) est écrite pour `Delay` ; elle vaut pour toute opération à horloge, `WRTbl` comprise. (up) vaut aussi pour `Gen`, dont le résultat est sur l'horloge racine, parent de l'horloge de la table.
-- (proj) et (hyp) : e₁, e₂, … sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la borne inférieure de leurs horloges. Ce n'est pas une itération : dès que la boucle de retour est effectivement lue, c est l'horloge que porte le `Mem` qui la ferme. Γ rassemble les hypothèses sur les groupes qui englobent W ; les autres règles le transmettent sans le lire, et il n'y est pas écrit.
+- (proj) et (hyp) : e₁, e₂, … sont les définitions du groupe W. Elles se réfèrent au groupe ; on les vérifie donc sous l'hypothèse W : c, que (hyp) permet d'utiliser, puis on contrôle que c est bien la plus profonde de leurs horloges. Ce n'est pas une itération : dès que la boucle de retour est effectivement lue, c est l'horloge que porte le `Mem` qui la ferme. Γ rassemble les hypothèses sur les groupes qui englobent W ; les autres règles le transmettent sans le lire, et il n'y est pas écrit.
 - (proj) : les projections d'un groupe partagent une horloge, comme elles partagent une variabilité (« le groupe est couplé »). **[D]**
 - (clk) : r entier, positif ou nul, est une obligation de certification, prise sur la forme normale. Pour une région du langage, elle demande en plus que la cadence soit une sélection ou une subdivision, ce qui se lit dans son intervalle : h dans [0, 1] pour `ondemand`, N constant et ≥ 1 pour `upsampling` et `downsampling`.
 - **[D] Si cette preuve échoue, la certification échoue.** Il n'y a pas de repli pour une cadence, à la différence d'un index de table ou du sélecteur de `switch` (voir l'exemple « Aiguillage »), qui sont saturés : une cadence corrigée en silence changerait le nombre d'exécutions d'une région.
@@ -784,7 +784,7 @@ Composition
 :   pour deux cadences booléennes, (p · h₁) · h₀ a les mêmes instants que p · (h₁ × `Up(p · h₁, h₀)`). C'est h₀ ⊗ h₁ de la spec v5. Si h₀ est visible depuis p, la loi de sélection simplifie cette cadence en h₁ × h₀. Les deux horloges ne sont pas égales, puisque leurs parents diffèrent ; mais si aucun signal ne vit sur l'horloge intermédiaire p · h₁, la cadence h₀ comprise, deux sorties successives se réduisent à une seule.
 
 Cas dégénérés
-:   avec r = 1 partout, c a le même temps que p et la remontée est l'identité : `Up(p · 1, y)` = y pour y sur un ancêtre de p, et une opération d'horloge p · 1 vaut la même opération d'horloge p. Avec r = 0 partout, c est l'horloge vide ⊥ : elle n'a aucun instant, et toute sortie vaut 0.
+:   avec r = 1 partout, la cadence est neutre : p · 1 = p. La région disparaît : `Up(p · 1, y)` = y, et une opération d'horloge p · 1 est la même opération d'horloge p. Avec r = 0 partout, c n'a aucun instant et toute sortie vaut 0 ; c reste une horloge ordinaire, qui garde son parent.
 
 La fusion `ondemand(P)(h) : ondemand(Q)(h)` = `ondemand(P:Q)(h)` découle de la loi de sélection et de l'égalité des horloges. Elle est fausse pour un `upsampling`.
 
@@ -920,9 +920,8 @@ Clock ::= Root
         | Derive(Clock, Sig)
 ```
 
-- `Root` est l'horloge racine : `Root` = `Derive(Root, 1)`.
+- `Root` est l'horloge racine : `Root` = `Derive(Root, 1)`. Plus généralement `Derive(p, 1)` = p : la forme normale efface une dérivation dont la cadence est la constante 1, en même temps que les sorties qui l'accompagnent.
 - `Derive(Clock, Sig)` est l'horloge de ce parent et de cette cadence, qui est un signal entier du parent.
-- L'horloge vide n'a pas de nœud à elle. Une région de cadence 0 s'écrit `Derive(p, 0)` et garde son parent, pour que sa sortie sache où revenir ; elle n'est identifiée à ⊥ que dans l'ordre sur les horloges, et seulement quand sa cadence est la constante 0.
 - Deux cadences sont des signaux de l'horloge racine qui ont leur propre nœud : `Count`, noté count dans le texte, est la longueur des blocs, la cadence de **S** ; `TblRate(L, G)`, noté τ(L, G), est la cadence d'une table, identifiée par sa taille et le circuit de son générateur.
 
 Les opérations qui portent une horloge l'ont pour premier argument ; les trois dernières lignes n'en portent pas :
@@ -1044,7 +1043,8 @@ Rien n'est implémenté au-delà de deux étapes sans effet sur le code génér�
 - Si la preuve qu'une cadence est un entier positif ou nul, et une sélection ou une subdivision pour une région du langage, échoue, la certification échoue : il n'y a pas de repli pour une cadence.
 - Une région du langage est une sélection ou une subdivision. Le calcul définit les cadences mixtes, le langage n'en offre pas : elles s'écrivent par emboîtement d'une sélection dans une subdivision.
 - Tant que la région n'a rien calculé, la sortie vaut 0. Il n'y a pas de sortie à valeur initiale explicite, qui serait à `Up` ce que `Prefix` est à `Mem` : `prefix` n'est presque jamais utilisé, et une telle sortie n'est pas indispensable.
-- L'horloge du résultat d'une opération sans mémoire est la borne inférieure de celles de ses arguments, qui doivent être compatibles. Un calcul placé sur l'horloge vide est permis : il n'est jamais exécuté.
+- L'horloge du résultat d'une opération sans mémoire est la plus profonde de celles de ses arguments, qui doivent être compatibles ; sinon l'opération est refusée.
+- La cadence 1 est neutre : une région de cadence constante 1 disparaît, et sa sortie `Up(p · 1, y)` vaut y.
 - Deux horloges sont égales quand elles ont le même parent et la même cadence, comparée par identité d'arbre après mise en forme normale.
 - Un générateur de table ne capture que des signaux de l'horloge racine. C'est la seule erreur d'horloge possible pour l'utilisateur ; les règles d'horloge la détectent à la propagation.
 - Une fois la propagation réussie, les règles d'horloge vérifient un invariant que chaque transformation doit préserver ; sa vérification est une obligation de certification, et une violation est un défaut du compilateur.
