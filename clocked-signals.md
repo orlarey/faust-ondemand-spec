@@ -1,6 +1,6 @@
 ---
 title: Les signaux à horloge de Faust
-subtitle: Spécification, brouillon v50
+subtitle: Spécification, brouillon v51
 author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
@@ -62,7 +62,7 @@ Il reprend de `clocks.md` les notions suivantes, qu'il rappelle au besoin :
 
 | Notation | Sens |
 | :--- | :--- |
-| temps d'une horloge | ℤ ; elle commence à l'instant 0, et ses instants négatifs sont ceux d'avant son démarrage |
+| temps d'une horloge | des instants numérotés par des entiers ; elle commence à l'instant 0, ses instants négatifs sont ceux d'avant son démarrage, et une horloge finie n'en a pas après le dernier |
 | p · r | l'horloge de parent p et de cadence r ; la cadence 1 est neutre : p · 1 = p |
 | ⊤ | l'horloge racine, dont les instants sont les étapes du programme |
 | repère de base | une horloge de profondeur 1, dont le parent est ⊤ : celle d'une table, ou celle des échantillons |

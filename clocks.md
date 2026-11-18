@@ -1,6 +1,6 @@
 ---
 title: Les horloges de Faust
-subtitle: Spécification, brouillon v50
+subtitle: Spécification, brouillon v51
 author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
@@ -51,19 +51,19 @@ La section « Les étapes du programme » dit quelles horloges a un programme Fa
 Une horloge est donnée par deux choses : le repère dans lequel elle est placée, qui est son horloge parente, et le nombre de ses instants qui ont lieu pendant chaque instant de celle-ci, qui est sa cadence.
 
 ::: definition [Horloge]
-Le temps d'une **horloge** est ℤ, comme le temps de Faust : ses instants sont les entiers. Elle commence à l'instant 0, et tourne à partir de là pendant ℕ, ou pendant un début de ℕ si elle n'a qu'un nombre fini d'instants. Ses instants négatifs sont ceux d'avant son démarrage, où il ne se passe rien. **[D]**
+Les instants d'une **horloge** sont numérotés par des entiers, comme le temps de Faust. Elle commence à l'instant 0 : ses instants 0, 1, 2, etc. sont ceux où elle tourne, et ses instants négatifs ceux d'avant son démarrage, où il ne se passe rien. Si elle tourne indéfiniment, son temps est ℤ. Si elle n'a qu'un nombre fini d'instants, son temps s'arrête au dernier : il n'y a pas d'instant après. **[D]**
 
 Toute horloge c a :
 
 - un **parent**, parent(c), qui est une horloge ;
-- une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants où le parent ne tourne pas : ses instants négatifs, avant qu'il ait commencé, et ceux qu'il n'atteint jamais s'il n'en a qu'un nombre fini.
+- une **cadence**, cadence(c), qui donne un entier positif ou nul à chaque instant de son parent : cadence(c)(t) est le nombre d'instants de c qui ont lieu pendant l'instant t de parent(c). Elle vaut 0 aux instants négatifs du parent, avant qu'il ait commencé.
 :::
 
 Deux horloges sont **égales** quand elles ont le même parent et la même cadence. Ce document est le modèle mathématique : les cadences y sont comparées comme des fonctions. Dans le compilateur, où une cadence est un signal, seules sont utilisées les égalités que l'on reconnaît à l'identité des arbres après mise en forme normale ; c'est l'objet de `clocked-signals.md`. Deux arbres différents peuvent désigner la même fonction : le compilateur y voit alors deux horloges, qui ont les mêmes instants.
 
 ## Les cadences constantes
 
-Une cadence vaut 0 là où le parent ne tourne pas : elle ne peut donc pas être constante sur tout ℤ. Quand on écrit un nombre N à la place d'une cadence, comme dans p · 1, p · 0 ou **S** · 4, il désigne la cadence qui vaut N à chaque instant où le parent tourne, et 0 ailleurs.
+Une cadence vaut 0 aux instants négatifs du parent : elle n'est donc jamais constante sur tout son temps. Quand on écrit un nombre N à la place d'une cadence, comme dans p · 1, p · 0 ou **S** · 4, il désigne la cadence qui vaut N à chaque instant où le parent tourne, et 0 avant son démarrage.
 
 ## La construction p · r
 
@@ -153,7 +153,7 @@ Pendant les deux premiers instants du parent, l'horloge n'a pas commencé : elle
 
 Pour l'horloge racine, la cadence vaut 1 à chaque instant où elle tourne : fait(t) = t + 1 à ces instants, et la remontée est l'identité. La définition générale s'applique donc aussi à ⊤, sans cas particulier.
 
-Une horloge tourne pendant autant d'instants que la somme de sa cadence sur tous les instants de son parent. Si cette somme est infinie, elle tourne à tous les instants de ℕ. Si elle est finie, elle ne tourne que pendant un début de ℕ, et la remontée n'est définie que sur lui. C'est le cas quand la cadence est nulle à partir d'un certain instant, ou quand le parent n'a lui-même qu'un nombre fini d'instants.
+Une horloge tourne pendant autant d'instants que la somme de sa cadence sur tous les instants de son parent. Si cette somme est infinie, elle tourne à tous les instants de ℕ. Si elle est finie, elle ne tourne que pendant un début de ℕ : elle n'a pas d'autre instant, et la remontée n'est définie que sur ceux-là. C'est le cas quand la cadence est nulle à partir d'un certain instant, ou quand le parent n'a lui-même qu'un nombre fini d'instants.
 
 # Sélection et subdivision
 
@@ -258,10 +258,10 @@ Ces horloges décrivent une exécution synchrone et causale, et elles reprennent
 
 # Décisions
 
-- Le temps d'une horloge est ℤ, comme le temps de Faust. Elle commence à l'instant 0, et tourne pendant ℕ ou un début de ℕ ; ses instants négatifs sont ceux d'avant son démarrage.
+- Les instants d'une horloge sont numérotés par des entiers, comme le temps de Faust. Elle commence à l'instant 0 et tourne pendant ℕ ou un début de ℕ ; ses instants négatifs sont ceux d'avant son démarrage. Une horloge finie n'a pas d'instant après le dernier.
 - Une horloge a un parent et une cadence ; l'horloge racine est son propre parent.
 - La construction p · r est normalisée : la cadence 1 est neutre, p · 1 = p pour toute horloge p, et parent et cadence ne sont lus sur p · r que si r n'est pas la cadence 1. L'horloge racine est la seule dont la cadence est 1.
-- Un nombre écrit à la place d'une cadence désigne la cadence qui a cette valeur à chaque instant où le parent tourne, et 0 ailleurs.
+- Un nombre écrit à la place d'une cadence désigne la cadence qui a cette valeur à chaque instant où le parent tourne, et 0 avant son démarrage.
 - Dans le modèle, les cadences sont comparées comme des fonctions ; le compilateur ne reconnaît que les égalités d'arbres après mise en forme normale.
 - L'instant courant d'une horloge est le dernier de ses instants qui a eu lieu. Tant qu'elle n'a pas commencé, elle en est à l'instant −1.
 - L'horloge racine a pour instants les étapes du programme : une par table, puis une par bloc. Les blocs ne sont pas une horloge à part.
