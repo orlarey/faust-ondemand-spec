@@ -97,7 +97,7 @@ L'**horloge racine**, notée ⊤, est l'horloge qui est son propre parent. Sa ca
 On demande que toute horloge atteigne ⊤ en un nombre fini de passages au parent : il n'y a ni chaîne infinie de parents, ni cycle autre que la boucle de la racine sur elle-même.
 :::
 
-La fonction parent est ainsi définie partout, et l'horloge racine en est le seul point fixe ; c'est aussi la seule horloge dont la cadence est 1. L'égalité ⊤ = ⊤ · 1, elle, n'a rien de propre à la racine : c'est la loi p · 1 = p, vraie de toute horloge. C'est la convention de la racine d'un système de fichiers, qui est son propre répertoire parent.
+La fonction parent est ainsi définie partout, et l'horloge racine en est le seul point fixe : c'est la convention de la racine d'un système de fichiers, qui est son propre répertoire parent. C'est aussi la seule horloge dont la cadence est 1. L'égalité ⊤ = ⊤ · 1, elle, n'a rien de propre à la racine : c'est la loi p · 1 = p, vraie de toute horloge.
 
 Le temps de l'horloge racine n'est pas déduit d'un autre : il est donné, et c'est l'hôte du programme qui le fait avancer.
 
