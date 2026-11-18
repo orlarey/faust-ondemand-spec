@@ -1,6 +1,6 @@
 ---
 title: Les signaux à horloge de Faust
-subtitle: Spécification, brouillon v49
+subtitle: Spécification, brouillon v50
 author: Yann Orlarey
 date: 15 novembre 2026
 document-style: article-a4
@@ -163,7 +163,7 @@ Plusieurs choses en découlent.
 - **Les cadences des repères de base sont des signaux aussi.** La longueur de chaque bloc, donnée par l'hôte, et la cadence de chaque table, donnée par le programme, sont des signaux de l'horloge racine.
 - **Elle est transformée comme tout signal.** Une horloge contient ses cadences ; une transformation qui réécrit les signaux réécrit donc aussi les horloges. Cela vaut pour la forme normale ; la forme de calcul, elle, ne réécrit pas une cadence (voir « Les deux formes »).
 
-**[D] Égalité.** Deux horloges sont égales quand elles ont le même parent et le même signal de cadence, comparé par identité d'arbre après mise en forme normale. C'est une approximation décidable de l'égalité des fonctions : deux cadences de même valeur mais d'arbres différents donnent deux horloges différentes. La forme normale applique la loi p · 1 = p quand la cadence est la constante 1. La cadence d'une table est comparée autrement, par la taille et le circuit de son générateur (voir « Une table et son repère »).
+**[D] Égalité.** Deux horloges sont égales quand elles ont le même parent et le même signal de cadence, comparé par identité d'arbre après mise en forme normale. C'est une approximation décidable de l'égalité des fonctions : deux cadences de même valeur mais d'arbres différents donnent deux horloges différentes. La forme normale applique la loi p · 1 = p quand la cadence est la constante 1. Une cadence qui vaudrait 1 partout sans être cette constante donne, pour le compilateur, une horloge distincte de p qui a les mêmes instants : les valeurs calculées sont les mêmes, seule la simplification est manquée. La cadence d'une table est comparée autrement, par la taille et le circuit de son générateur (voir « Une table et son repère »).
 
 # La sémantique
 
