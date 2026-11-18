@@ -63,7 +63,7 @@ Deux horloges sont **égales** quand elles ont le même parent et la même caden
 
 ## Les cadences constantes
 
-Une cadence vaut 0 aux instants négatifs du parent : elle n'est donc jamais constante sur tout son temps. Quand on écrit un nombre N à la place d'une cadence, comme dans p · 1, p · 0 ou **S** · 4, il désigne la cadence qui vaut N à chaque instant où le parent tourne, et 0 avant son démarrage.
+Une cadence vaut 0 aux instants négatifs du parent : elle ne peut donc pas être à la fois constante et non nulle sur tout son temps. Quand on écrit un nombre N à la place d'une cadence, comme dans p · 1, p · 0 ou **S** · 4, il désigne la cadence qui vaut N à chaque instant où le parent tourne, et 0 avant son démarrage.
 
 ## La construction p · r
 
@@ -153,7 +153,7 @@ Pendant les deux premiers instants du parent, l'horloge n'a pas commencé : elle
 
 Pour l'horloge racine, la cadence vaut 1 à chaque instant où elle tourne : fait(t) = t + 1 à ces instants, et la remontée est l'identité. La définition générale s'applique donc aussi à ⊤, sans cas particulier.
 
-Une horloge tourne pendant autant d'instants que la somme de sa cadence sur tous les instants de son parent. Si cette somme est infinie, elle tourne à tous les instants de ℕ. Si elle est finie, elle ne tourne que pendant un début de ℕ : elle n'a pas d'autre instant, et la remontée n'est définie que sur ceux-là. C'est le cas quand la cadence est nulle à partir d'un certain instant, ou quand le parent n'a lui-même qu'un nombre fini d'instants.
+Une horloge tourne pendant autant d'instants que la somme de sa cadence sur tous les instants de son parent. Si cette somme est infinie, elle tourne à tous les instants de ℕ. Si elle est finie, elle ne tourne que pendant un début de ℕ : elle n'a pas d'autre instant où elle tourne, et la remontée n'est définie que sur ceux-là. C'est le cas quand la cadence est nulle à partir d'un certain instant, ou quand le parent n'a lui-même qu'un nombre fini d'instants.
 
 # Sélection et subdivision
 
